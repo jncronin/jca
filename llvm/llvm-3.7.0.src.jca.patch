@@ -1,0 +1,3822 @@
+diff -crBN llvm-3.7.0.src/CMakeLists.txt llvm-3.7.0.src-orig/CMakeLists.txt
+*** llvm-3.7.0.src/CMakeLists.txt	2015-11-11 14:32:42.366107000 +0000
+--- llvm-3.7.0.src-orig/CMakeLists.txt	2015-08-14 20:51:38.000000000 +0100
+***************
+*** 189,195 ****
+    SystemZ
+    X86
+    XCore
+-   JCA
+    )
+  
+  # List of targets with JIT support:
+--- 189,194 ----
+diff -crBN llvm-3.7.0.src/include/llvm/ADT/Triple.h llvm-3.7.0.src-orig/include/llvm/ADT/Triple.h
+*** llvm-3.7.0.src/include/llvm/ADT/Triple.h	2015-11-11 23:34:58.946369000 +0000
+--- llvm-3.7.0.src-orig/include/llvm/ADT/Triple.h	2015-07-07 00:58:14.000000000 +0100
+***************
+*** 53,59 ****
+      bpfel,      // eBPF or extended BPF or 64-bit BPF (little endian)
+      bpfeb,      // eBPF or extended BPF or 64-bit BPF (big endian)
+      hexagon,    // Hexagon: hexagon
+-     jca,	// JCA
+      mips,       // MIPS: mips, mipsallegrex
+      mipsel,     // MIPSEL: mipsel, mipsallegrexel
+      mips64,     // MIPS64: mips64
+--- 53,58 ----
+diff -crBN llvm-3.7.0.src/include/llvm/MC/MCExpr.h llvm-3.7.0.src-orig/include/llvm/MC/MCExpr.h
+*** llvm-3.7.0.src/include/llvm/MC/MCExpr.h	2015-11-11 23:27:33.954369000 +0000
+--- llvm-3.7.0.src-orig/include/llvm/MC/MCExpr.h	2015-06-09 01:31:39.000000000 +0100
+***************
+*** 276,306 ****
+      VK_Mips_PCREL_HI16,
+      VK_Mips_PCREL_LO16,
+  
+-     VK_JCA_GPREL,
+-     VK_JCA_GOT_CALL,
+-     VK_JCA_GOT16,
+-     VK_JCA_GOT,
+-     VK_JCA_ABS_HI,
+-     VK_JCA_ABS_LO,
+-     VK_JCA_TLSGD,
+-     VK_JCA_TLSLDM,
+-     VK_JCA_DTP_HI,
+-     VK_JCA_DTP_LO,
+-     VK_JCA_GOTTPREL,
+-     VK_JCA_TP_HI,
+-     VK_JCA_TP_LO,
+-     VK_JCA_GPOFF_HI,
+-     VK_JCA_GPOFF_LO,
+-     VK_JCA_GOT_DISP,
+-     VK_JCA_GOT_PAGE,
+-     VK_JCA_GOT_OFST,
+-     VK_JCA_HIGHER,
+-     VK_JCA_HIGHEST,
+-     VK_JCA_GOT_HI16,
+-     VK_JCA_GOT_LO16,
+-     VK_JCA_CALL_HI16,
+-     VK_JCA_CALL_LO16,
+- 
+      VK_COFF_IMGREL32, // symbol@imgrel (image-relative)
+  
+      VK_Hexagon_PCREL,
+--- 276,281 ----
+diff -crBN llvm-3.7.0.src/lib/CodeGen/SelectionDAG/SelectionDAGDumper.cpp llvm-3.7.0.src-orig/lib/CodeGen/SelectionDAG/SelectionDAGDumper.cpp
+*** llvm-3.7.0.src/lib/CodeGen/SelectionDAG/SelectionDAGDumper.cpp	2015-11-14 22:50:54.626372431 +0000
+--- llvm-3.7.0.src-orig/lib/CodeGen/SelectionDAG/SelectionDAGDumper.cpp	2015-07-07 23:25:32.000000000 +0100
+***************
+*** 637,650 ****
+  
+    for (const SDValue &Op : N->op_values()) {
+      // Don't follow chain operands.
+-     OS << '\n';
+      if (Op.getValueType() == MVT::Other)
+! 	{
+! 		OS.indent(indent + 2);
+! 		OS << "MVT::Other";
+! 	}
+! 	else
+! 	    printrWithDepthHelper(OS, Op.getNode(), G, depth-1, indent+2);
+    }
+  }
+  
+--- 637,646 ----
+  
+    for (const SDValue &Op : N->op_values()) {
+      // Don't follow chain operands.
+      if (Op.getValueType() == MVT::Other)
+!       continue;
+!     OS << '\n';
+!     printrWithDepthHelper(OS, Op.getNode(), G, depth-1, indent+2);
+    }
+  }
+  
+Binary files llvm-3.7.0.src/lib/CodeGen/SelectionDAG/.SelectionDAGDumper.cpp.swp and llvm-3.7.0.src-orig/lib/CodeGen/SelectionDAG/.SelectionDAGDumper.cpp.swp differ
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/CMakeLists.txt llvm-3.7.0.src-orig/lib/Target/JCA/CMakeLists.txt
+*** llvm-3.7.0.src/lib/Target/JCA/CMakeLists.txt	2015-11-18 18:03:46.915826711 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/CMakeLists.txt	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,28 ****
+- set(LLVM_TARGET_DEFINITIONS JCA.td)
+- 
+- tablegen(LLVM JCAGenRegisterInfo.inc -gen-register-info)
+- tablegen(LLVM JCAGenInstrInfo.inc -gen-instr-info)
+- tablegen(LLVM JCAGenAsmWriter.inc -gen-asm-writer)
+- tablegen(LLVM JCAGenDAGISel.inc -gen-dag-isel)
+- tablegen(LLVM JCAGenCallingConv.inc -gen-callingconv)
+- tablegen(LLVM JCAGenSubtargetInfo.inc -gen-subtarget)
+- tablegen(LLVM JCAGenMCCodeEmitter.inc -gen-emitter)
+- 
+- add_public_tablegen_target(JCACommonTableGen)
+- 
+- add_llvm_target(JCACodeGen
+- 	JCASubtarget.cpp
+- 	JCATargetMachine.cpp
+- 	JCARegisterInfo.cpp
+- 	JCAInstrInfo.cpp
+- 	JCAFrameLowering.cpp
+- 	JCAISelLowering.cpp
+- 	JCAISelDAGToDAG.cpp
+- 	JCAAsmPrinter.cpp
+- 	JCAMCInstLower.cpp
+- )
+- 
+- add_subdirectory(InstPrinter)
+- add_subdirectory(TargetInfo)
+- add_subdirectory(MCTargetDesc)
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/InstPrinter/CMakeLists.txt llvm-3.7.0.src-orig/lib/Target/JCA/InstPrinter/CMakeLists.txt
+*** llvm-3.7.0.src/lib/Target/JCA/InstPrinter/CMakeLists.txt	2015-11-12 18:21:57.078413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/InstPrinter/CMakeLists.txt	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,4 ****
+- add_llvm_library(LLVMJCAAsmPrinter
+- 	JCAInstPrinter.cpp
+- )
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/InstPrinter/JCAInstPrinter.cpp llvm-3.7.0.src-orig/lib/Target/JCA/InstPrinter/JCAInstPrinter.cpp
+*** llvm-3.7.0.src/lib/Target/JCA/InstPrinter/JCAInstPrinter.cpp	2016-01-07 15:58:05.577131288 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/InstPrinter/JCAInstPrinter.cpp	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,253 ****
+- //===-- JCAInstPrinter.cpp - Convert JCA MCInst to assembly syntax -----==//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This class prints an JCA MCInst to a .s file.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #include "JCAInstPrinter.h"
+- #include "JCA.h"
+- #include "llvm/MC/MCExpr.h"
+- #include "llvm/MC/MCInst.h"
+- #include "llvm/MC/MCRegisterInfo.h"
+- #include "llvm/MC/MCSymbol.h"
+- #include "llvm/Support/raw_ostream.h"
+- #include "llvm/CodeGen/ISDOpcodes.h"
+- using namespace llvm;
+- 
+- #define DEBUG_TYPE "asm-printer"
+- 
+- #define GET_INSTRUCTION_NAME
+- #define PRINT_ALIAS_INSTR
+- #include "JCAGenAsmWriter.inc"
+- 
+- void JCAInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const
+- {
+-   OS << StringRef(getRegisterName(RegNo));
+- }
+- 
+- static void printCondCode(raw_ostream &O, int64_t cc)
+- {
+- 	switch(cc) {
+- 		case ISD::SETUEQ:
+- 		case ISD::SETOEQ:
+- 		case ISD::SETEQ:	O << "z"; break;
+- 		case ISD::SETUGT:
+- 		case ISD::SETOGT:
+- 		case ISD::SETGT:	O << "p"; break;
+- 		case ISD::SETUGE:
+- 		case ISD::SETOGE:
+- 		case ISD::SETGE:	O << "poseq"; break;
+- 		case ISD::SETULE:
+- 		case ISD::SETOLE:
+- 		case ISD::SETLE:	O << "negeq"; break;
+- 		case ISD::SETULT:
+- 		case ISD::SETOLT:
+- 		case ISD::SETLT:	O << "n"; break;
+- 		case ISD::SETUNE:
+- 		case ISD::SETONE:
+- 		case ISD::SETNE:	O << "nz"; break;
+- 		default:		O << "unknown cond code: " << cc; break;
+- 	}
+- }
+- 
+- static void printNotCondCode(raw_ostream &O, int64_t cc)
+- {
+- 	switch(cc) {
+- 		case ISD::SETUNE:
+- 		case ISD::SETONE:
+- 		case ISD::SETNE:	O << "z"; break;
+- 		case ISD::SETULE:
+- 		case ISD::SETOLE:
+- 		case ISD::SETLE:	O << "p"; break;
+- 		case ISD::SETULT:
+- 		case ISD::SETOLT:
+- 		case ISD::SETLT:	O << "poseq"; break;
+- 		case ISD::SETUGT:
+- 		case ISD::SETOGT:
+- 		case ISD::SETGT:	O << "negeq"; break;
+- 		case ISD::SETUGE:
+- 		case ISD::SETOGE:
+- 		case ISD::SETGE:	O << "n"; break;
+- 		case ISD::SETUEQ:
+- 		case ISD::SETOEQ:
+- 		case ISD::SETEQ:	O << "nz"; break;
+- 		default:		O << "unknown cond code: " << cc; break;
+- 	}
+- }
+- 
+- static bool FitsSignedBits(const MCOperand &o, int bits)
+- {
+- 	if(o.isReg())
+- 		return true;
+- 	if(!o.isImm())
+- 		assert(0 && "Unknown operand kind");
+- 
+- 	int64_t v = o.getImm();
+- 	int64_t maxv = (1 << (bits - 1)) - 1;
+- 	int64_t minv = -(1 << (bits - 1));
+- 
+- 	if(v >= minv && v <= maxv)
+- 		return true;
+- 	return false;
+- }
+- 
+- static bool FitsSrcab(const MCOperand &o) { return FitsSignedBits(o, 11); }
+- 
+- void JCAInstPrinter::printSetCCInstruction(const MCInst *MI,
+- 		const MCSubtargetInfo &STI, raw_ostream &O)
+- {
+- 	/* dst = SetCC(lhs, rhs, cc)
+- 	 * Encode to:
+- 	 * 	sub lhs, rhs -> r1
+- 	 * 	m 0 -> dst
+- 	 * 	sub(cc r1) dst, 1 -> dst
+- 	 */
+- 
+- 	const MCOperand &dst = MI->getOperand(0);
+- 	const MCOperand &lhs = MI->getOperand(1);
+- 	const MCOperand &rhs = MI->getOperand(2);
+- 	const MCOperand &cc = MI->getOperand(3);
+- 
+- 	O << "\tsub ";
+- 	printOperand(lhs, O);
+- 	O << ", ";
+- 	printOperand(rhs, O);
+- 	O << " -> R1 ;\n";
+- 
+- 	O << "\tm 0 -> ";
+- 	printOperand(dst, O);
+- 	O << " ;\n";
+- 
+- 	O << "\tsub(";
+- 	printCondCode(O, cc.getImm());
+- 	O << " R1) ";
+- 	printOperand(dst, O);
+- 	O << ", 1 -> ";
+- 	printOperand(dst, O);
+- 	O << " ;";
+- }
+- 
+- void JCAInstPrinter::printSelectCCInstruction(const MCInst *MI,
+- 		const MCSubtargetInfo &STI, raw_ostream &O)
+- {
+- 	/* dst = SelectCC(lhs, rhs, tval, fval, cc)
+- 	 * Encode to:
+- 	 * 	sub lhs, rhs -> dst
+- 	 * 	jrel(cc dst) +8
+- 	 *	lit tval -> R1
+- 	 *	jrel +4
+- 	 *	lit fval -> R1
+- 	 *	mov R1 -> dst
+- 	 *
+- 	 * If tval/fval fit in srcab, or are regs, can optimise to
+- 	 *	sub lhs, rhs -> r1
+- 	 *	mov(cc r1) tval -> dst
+- 	 *	mov(ncc r1) fval -> dst
+- 	 */
+- 
+- 	const MCOperand &dst = MI->getOperand(0);
+- 	const MCOperand &lhs = MI->getOperand(1);
+- 	const MCOperand &rhs = MI->getOperand(2);
+- 	const MCOperand &tval = MI->getOperand(3);
+- 	const MCOperand &fval = MI->getOperand(4);
+- 	const MCOperand &cc = MI->getOperand(5);
+- 
+- 	if(FitsSrcab(tval) && FitsSrcab(fval))
+- 	{
+- 		O << "\tsub ";
+- 		printOperand(lhs, O);
+- 		O << ", ";
+- 		printOperand(rhs, O);
+- 		O << " -> R1 ;\n";
+- 
+- 		O << "\tm(";
+- 		printCondCode(O, cc.getImm());
+- 		O << " R1) ";
+- 		printOperand(tval, O);
+- 		O << " -> ";
+- 		printOperand(dst, O);
+- 		O << " ;\n";
+- 
+- 		O << "\tm(";
+- 		printNotCondCode(O, cc.getImm());
+- 		O << " R1) ";
+- 		printOperand(fval, O);
+- 		O << " -> ";
+- 		printOperand(dst, O);
+- 		O << " ;";
+- 	}
+- 	else
+- 	{
+- 		assert(0 && "LIT form of SELECTCC not yet implemented");
+- 	}
+- }
+- 
+- void JCAInstPrinter::printCondBranchInstruction(const MCInst *MI,
+- 	const MCSubtargetInfo &STI, raw_ostream &O)
+- {
+-   /* the conditional branch instruction (BRcc) has three instructions:
+- 	0) an integer condition code (as per ISD::SETcc)
+- 	1) the register to use as a test
+- 	2) the target
+- 
+-      we here print it out specially
+-   */
+-   O << "\tjrel(";
+-   printCondCode(O, MI->getOperand(0).getImm());
+-   O << " ";
+-   printRegName(O, MI->getOperand(1).getReg());
+-   O << ") ";
+-   MI->getOperand(2).getExpr()->print(O, &MAI);
+-   O << " ;";
+- }
+- 
+- void JCAInstPrinter::printInst(const MCInst *MI, raw_ostream &O,
+-                                  StringRef Annot, const MCSubtargetInfo &STI) {
+- 	switch(MI->getOpcode())
+- 	{
+- 		case JCA::Bcc:
+-     		printCondBranchInstruction(MI, STI, O);
+- 			break;
+- 		case JCA::SELECTCC:
+- 			printSelectCCInstruction(MI, STI, O);
+- 			break;
+- 		case JCA::SETCC:
+- 			printSetCCInstruction(MI, STI, O);
+- 			break;
+- 		default:
+-     		printInstruction(MI, STI, O);
+- 			break;
+- 	}
+- 	printAnnotation(O, Annot);
+- }
+- 
+- void JCAInstPrinter::printOperand(const MCInst *MI, int opNum,
+-                                     const MCSubtargetInfo &STI,
+-                                     raw_ostream &O) {
+-   const MCOperand &MO = MI->getOperand (opNum);
+-   printOperand(MO, O);
+- }
+- 
+- void JCAInstPrinter::printOperand(const MCOperand &MO, raw_ostream &O)
+- {
+-   if (MO.isReg()) {
+-     printRegName(O, MO.getReg());
+-     return ;
+-   }
+- 
+-   if (MO.isImm()) {
+-     O << (int)MO.getImm();
+-     return;
+-   }
+- 
+-   assert(MO.isExpr() && "Unknown operand kind in printOperand");
+-   MO.getExpr()->print(O, &MAI);
+- }
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/InstPrinter/JCAInstPrinter.h llvm-3.7.0.src-orig/lib/Target/JCA/InstPrinter/JCAInstPrinter.h
+*** llvm-3.7.0.src/lib/Target/JCA/InstPrinter/JCAInstPrinter.h	2016-01-06 17:57:14.697239999 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/InstPrinter/JCAInstPrinter.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,67 ****
+- //===-- JCAInstPrinter.h - Convert JCA MCInst to assembly syntax ------===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This class prints an JCA MCInst to a .s file.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #ifndef LLVM_LIB_TARGET_SPARC_INSTPRINTER_SPARCINSTPRINTER_H
+- #define LLVM_LIB_TARGET_SPARC_INSTPRINTER_SPARCINSTPRINTER_H
+- 
+- #include "llvm/MC/MCInstPrinter.h"
+- #include "llvm/MC/MCSubtargetInfo.h"
+- 
+- namespace llvm {
+- 
+- class MCOperand;
+- 
+- class JCAInstPrinter : public MCInstPrinter {
+- public:
+-   JCAInstPrinter(const MCAsmInfo &MAI, const MCInstrInfo &MII,
+-                    const MCRegisterInfo &MRI)
+-       : MCInstPrinter(MAI, MII, MRI) {}
+- 
+-   void printRegName(raw_ostream &OS, unsigned RegNo) const override;
+-   void printInst(const MCInst *MI, raw_ostream &O, StringRef Annot,
+-                  const MCSubtargetInfo &STI) override;
+-   bool printJCAAliasInstr(const MCInst *MI, const MCSubtargetInfo &STI,
+-                             raw_ostream &OS);
+-   bool isV9(const MCSubtargetInfo &STI) const;
+- 
+-   // Autogenerated by tblgen.
+-   void printInstruction(const MCInst *MI, const MCSubtargetInfo &STI,
+-                         raw_ostream &O);
+-   bool printAliasInstr(const MCInst *MI, const MCSubtargetInfo &STI,
+-                        raw_ostream &O);
+-   void printCustomAliasOperand(const MCInst *MI, unsigned OpIdx,
+-                                unsigned PrintMethodIdx,
+-                                const MCSubtargetInfo &STI, raw_ostream &O);
+-   static const char *getRegisterName(unsigned RegNo);
+- 
+-   void printOperand(const MCInst *MI, int opNum, const MCSubtargetInfo &STI,
+-                     raw_ostream &OS);
+-   void printOperand(const MCOperand &MO, raw_ostream &OS);
+-   void printMemOperand(const MCInst *MI, int opNum, const MCSubtargetInfo &STI,
+-                        raw_ostream &OS, const char *Modifier = nullptr);
+-   void printCCOperand(const MCInst *MI, int opNum, const MCSubtargetInfo &STI,
+-                       raw_ostream &OS);
+-   bool printGetPCX(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+-                    raw_ostream &OS);
+- 
+- 
+-   void printCondBranchInstruction(const MCInst *MI,
+- 	const MCSubtargetInfo &STI, raw_ostream &O);
+-   void printSelectCCInstruction(const MCInst *MI,
+- 	const MCSubtargetInfo &STI, raw_ostream &O);
+-   void printSetCCInstruction(const MCInst *MI,
+- 	const MCSubtargetInfo &STI, raw_ostream &O);
+- };
+- } // end namespace llvm
+- 
+- #endif
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/InstPrinter/LLVMBuild.txt llvm-3.7.0.src-orig/lib/Target/JCA/InstPrinter/LLVMBuild.txt
+*** llvm-3.7.0.src/lib/Target/JCA/InstPrinter/LLVMBuild.txt	2015-11-12 18:22:39.190413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/InstPrinter/LLVMBuild.txt	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,7 ****
+- [component_0]
+- type = Library
+- name = JCAAsmPrinter
+- parent = JCA
+- required_libraries = MC Support
+- add_to_library_groups = JCA
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCAAsmPrinter.cpp llvm-3.7.0.src-orig/lib/Target/JCA/JCAAsmPrinter.cpp
+*** llvm-3.7.0.src/lib/Target/JCA/JCAAsmPrinter.cpp	2015-11-18 18:06:37.775826711 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCAAsmPrinter.cpp	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,68 ****
+- //===-- JCAAsmPrinter.cpp - JCA LLVM assembly writer ------------------===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file contains a printer that converts from our internal representation
+- // of machine-dependent LLVM code to JCA assembly language.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #include "JCA.h"
+- #include "InstPrinter/JCAInstPrinter.h"
+- #include "JCAInstrInfo.h"
+- #include "JCATargetMachine.h"
+- #include "JCATargetStreamer.h"
+- #include "llvm/ADT/SmallString.h"
+- #include "llvm/CodeGen/AsmPrinter.h"
+- #include "llvm/CodeGen/MachineInstr.h"
+- #include "llvm/CodeGen/MachineModuleInfoImpls.h"
+- #include "llvm/CodeGen/MachineRegisterInfo.h"
+- #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
+- #include "llvm/IR/Mangler.h"
+- #include "llvm/MC/MCAsmInfo.h"
+- #include "llvm/MC/MCContext.h"
+- #include "llvm/MC/MCInst.h"
+- #include "llvm/MC/MCStreamer.h"
+- #include "llvm/MC/MCSymbol.h"
+- #include "llvm/Support/TargetRegistry.h"
+- #include "llvm/Support/raw_ostream.h"
+- using namespace llvm;
+- 
+- #define DEBUG_TYPE "asm-printer"
+- 
+- namespace {
+-   class JCAAsmPrinter : public AsmPrinter {
+-     JCATargetStreamer &getTargetStreamer() {
+-       return static_cast<JCATargetStreamer &>(
+-           *OutStreamer->getTargetStreamer());
+-     }
+-   public:
+-     explicit JCAAsmPrinter(TargetMachine &TM,
+-                              std::unique_ptr<MCStreamer> Streamer)
+-         : AsmPrinter(TM, std::move(Streamer)) {}
+- 
+-     const char *getPassName() const override {
+-       return "JCA Assembly Printer";
+-     }
+- 
+-     void EmitInstruction(const MachineInstr *MI) override;
+-   };
+- } // end of anonymous namespace
+- 
+- extern "C" void LLVMInitializeJCAAsmPrinter()
+- {
+- 	RegisterAsmPrinter<JCAAsmPrinter> X(TheJCATarget);
+- }
+- 
+- void JCAAsmPrinter::EmitInstruction(const MachineInstr *MI)
+- {
+- 	MCInst lowered;
+- 	llvm::LowerJCAMachineInstrToMCInst(MI, lowered, *this);
+- 	EmitToStreamer(*OutStreamer, lowered);
+- }
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCACallingConv.td llvm-3.7.0.src-orig/lib/Target/JCA/JCACallingConv.td
+*** llvm-3.7.0.src/lib/Target/JCA/JCACallingConv.td	2015-11-18 18:12:10.087826711 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCACallingConv.td	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,35 ****
+- //===-- JCACallingConv.td - Calling Conventions JCA ----*- tablegen -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This describes the calling conventions for the JCA architectures.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- //===----------------------------------------------------------------------===//
+- // JCA v8 32-bit.
+- //===----------------------------------------------------------------------===//
+- 
+- def CC_JCA : CallingConv<[
+-   // Promote i8/i16 arguments to i32
+-   CCIfType<[i8, i16], CCPromoteToType<i32>>,
+- 
+-   // The first 4 arguments are passed in registers
+-   CCIfType<[i32], CCAssignToReg<[R2, R3, R4, R5]>>,
+- 
+-   // Alternatively, they are assigned to the stack in 4-byte aligned units.
+-   CCAssignToStack<4, 4>
+- ]>;
+- 
+- // return value in R2/3
+- def RetCC_JCA : CallingConv<[
+-   CCIfType<[i32], CCAssignToReg<[R2, R3]>>
+- ]>;
+- 
+- def CC_Save : CalleeSavedRegs<(add R8, R9, R10, R11, R12, R13, R14, R15, LR)>;
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCAFrameLowering.cpp llvm-3.7.0.src-orig/lib/Target/JCA/JCAFrameLowering.cpp
+*** llvm-3.7.0.src/lib/Target/JCA/JCAFrameLowering.cpp	2015-11-13 01:20:07.066413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCAFrameLowering.cpp	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,132 ****
+- //===-- JCAFrameLowering.cpp - JCA Frame Information ------------------===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file contains the JCA implementation of TargetFrameLowering class.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #include "JCAFrameLowering.h"
+- #include "JCAInstrInfo.h"
+- #include "JCAMachineFunctionInfo.h"
+- #include "JCASubtarget.h"
+- #include "llvm/CodeGen/MachineFrameInfo.h"
+- #include "llvm/CodeGen/MachineFunction.h"
+- #include "llvm/CodeGen/MachineInstrBuilder.h"
+- #include "llvm/CodeGen/MachineModuleInfo.h"
+- #include "llvm/CodeGen/MachineRegisterInfo.h"
+- #include "llvm/IR/DataLayout.h"
+- #include "llvm/IR/Function.h"
+- #include "llvm/Support/CommandLine.h"
+- #include "llvm/Target/TargetOptions.h"
+- 
+- using namespace llvm;
+- 
+- JCAFrameLowering::JCAFrameLowering(const JCASubtarget &ST)
+-     : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 4, 0) {}
+- 
+- bool JCAFrameLowering::hasFP(const MachineFunction &MF) const {
+- 	return false;
+- }
+- 
+- uint64_t JCAFrameLowering::computeStackSize(MachineFunction &MF) const {
+- 	MachineFrameInfo *MFI = MF.getFrameInfo();
+- 	uint64_t StackSize = MFI->getStackSize();
+- 	unsigned StackAlign = getStackAlignment();
+- 	if(StackAlign > 0)
+- 		StackSize = RoundUpToAlignment(StackSize, StackAlign);
+- 	return StackSize;
+- }
+- 
+- // decide if an offset fits as an immediate for the add/sub instruction
+- // if it fits return 0, else use a register and return the register number
+- static unsigned materializeOffset(MachineFunction &MF,
+- 	MachineBasicBlock &MBB,
+- 	MachineBasicBlock::iterator MBBI,
+- 	unsigned Offset)
+- {
+- 	const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+- 	DebugLoc dl = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
+- 	const uint64_t MaxSubImm = 0x1f;
+- 
+- 	if(Offset <= MaxSubImm)
+- 		return 0;
+- 
+- 	// create a register with the offset in
+- 	unsigned OffsetReg = JCA::R1;
+- 	BuildMI(MBB, MBBI, dl, TII.get(JCA::LITr1), OffsetReg)
+- 		.addImm(Offset)
+- 		.setMIFlag(MachineInstr::FrameSetup);
+- 
+- 	return OffsetReg;
+- }
+- 
+- void JCAFrameLowering::emitPrologue(MachineFunction &MF,
+-                                       MachineBasicBlock &MBB) const {
+- 	// Compute the stack size to see if we need to adjust SP at all
+- 	const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+- 	MachineBasicBlock::iterator MBBI = MBB.begin();
+- 	DebugLoc dl = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
+- 
+- 	uint64_t StackSize = computeStackSize(MF);
+- 	if(!StackSize)
+- 		return;
+- 
+- 	unsigned StackReg = JCA::SP;
+- 	unsigned OffsetReg = materializeOffset(MF, MBB, MBBI,
+- 		(unsigned)StackSize);
+- 
+- 	if(OffsetReg) {
+- 		BuildMI(MBB, MBBI, dl, TII.get(JCA::SUBrr), StackReg)
+- 			.addReg(StackReg)
+- 			.addReg(OffsetReg)
+- 			.setMIFlag(MachineInstr::FrameSetup);
+- 	} else {
+- 		BuildMI(MBB, MBBI, dl, TII.get(JCA::SUBri), StackReg)
+- 			.addReg(StackReg)
+- 			.addImm(StackSize)
+- 			.setMIFlag(MachineInstr::FrameSetup);
+- 	}
+- }
+- 
+- void JCAFrameLowering::emitEpilogue(MachineFunction &MF,
+-                                       MachineBasicBlock &MBB) const {
+- 	// Compute the stack size to see if we need to adjust SP at all
+- 	const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+- 	MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
+- 	DebugLoc dl = MBBI->getDebugLoc();
+- 
+- 	uint64_t StackSize = computeStackSize(MF);
+- 	if(!StackSize)
+- 		return;
+- 
+- 	unsigned StackReg = JCA::SP;
+- 	unsigned OffsetReg = materializeOffset(MF, MBB, MBBI,
+- 		(unsigned)StackSize);
+- 
+- 	if(OffsetReg) {
+- 		BuildMI(MBB, MBBI, dl, TII.get(JCA::ADDrr), StackReg)
+- 			.addReg(StackReg)
+- 			.addReg(OffsetReg)
+- 			.setMIFlag(MachineInstr::FrameSetup);
+- 	} else {
+- 		BuildMI(MBB, MBBI, dl, TII.get(JCA::ADDri), StackReg)
+- 			.addReg(StackReg)
+- 			.addImm(StackSize)
+- 			.setMIFlag(MachineInstr::FrameSetup);
+- 	}
+- }
+- 
+- void JCAFrameLowering::
+- eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
+-                               MachineBasicBlock::iterator I) const {
+- 	if (I->getOpcode() == JCA::ADJCALLSTACKUP ||
+- 		I->getOpcode() == JCA::ADJCALLSTACKDOWN)
+- 			MBB.erase(I);
+- }
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCAFrameLowering.h llvm-3.7.0.src-orig/lib/Target/JCA/JCAFrameLowering.h
+*** llvm-3.7.0.src/lib/Target/JCA/JCAFrameLowering.h	2015-11-12 14:26:11.222413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCAFrameLowering.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,45 ****
+- //===-- JCAFrameLowering.h - Define frame lowering for JCA --*- C++ -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- //
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #ifndef LLVM_LIB_TARGET_SPARC_SPARCFRAMELOWERING_H
+- #define LLVM_LIB_TARGET_SPARC_SPARCFRAMELOWERING_H
+- 
+- #include "JCA.h"
+- #include "llvm/Target/TargetFrameLowering.h"
+- 
+- namespace llvm {
+- 
+- class JCASubtarget;
+- class JCAFrameLowering : public TargetFrameLowering {
+- public:
+-   explicit JCAFrameLowering(const JCASubtarget &ST);
+- 
+-   /// emitProlog/emitEpilog - These methods insert prolog and epilog code into
+-   /// the function.
+-   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
+-   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
+- 
+-   void
+-   eliminateCallFramePseudoInstr(MachineFunction &MF,
+-                                 MachineBasicBlock &MBB,
+-                                 MachineBasicBlock::iterator I) const override;
+- 
+-   bool hasFP(const MachineFunction &MF) const override;
+- 
+- private:
+- 	uint64_t computeStackSize(MachineFunction &MF) const;
+- };
+- 
+- } // End llvm namespace
+- 
+- #endif
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCA.h llvm-3.7.0.src-orig/lib/Target/JCA/JCA.h
+*** llvm-3.7.0.src/lib/Target/JCA/JCA.h	2015-11-12 18:28:55.526413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCA.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,134 ****
+- //===-- JCA.h - Top-level interface for JCA representation --*- C++ -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file contains the entry points for global functions defined in the LLVM
+- // JCA back-end.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #ifndef LLVM_LIB_TARGET_SPARC_SPARC_H
+- #define LLVM_LIB_TARGET_SPARC_SPARC_H
+- 
+- #include "llvm/Support/ErrorHandling.h"
+- #include "llvm/Target/TargetMachine.h"
+- #include "MCTargetDesc/JCAMCTargetDesc.h"
+- 
+- namespace llvm {
+-   class FunctionPass;
+-   class JCATargetMachine;
+-   class formatted_raw_ostream;
+-   class AsmPrinter;
+-   class MCInst;
+-   class MachineInstr;
+- 
+-   FunctionPass *createJCAISelDag(JCATargetMachine &TM);
+-   FunctionPass *createJCADelaySlotFillerPass(TargetMachine &TM);
+- 
+-   void LowerJCAMachineInstrToMCInst(const MachineInstr *MI,
+-                                       MCInst &OutMI,
+-                                       AsmPrinter &AP);
+- } // end namespace llvm;
+- 
+- namespace llvm {
+-   // Enums corresponding to JCA condition codes, both icc's and fcc's.  These
+-   // values must be kept in sync with the ones in the .td file.
+-   namespace SPCC {
+-     enum CondCodes {
+-       ICC_A   =  8   ,  // Always
+-       ICC_N   =  0   ,  // Never
+-       ICC_NE  =  9   ,  // Not Equal
+-       ICC_E   =  1   ,  // Equal
+-       ICC_G   = 10   ,  // Greater
+-       ICC_LE  =  2   ,  // Less or Equal
+-       ICC_GE  = 11   ,  // Greater or Equal
+-       ICC_L   =  3   ,  // Less
+-       ICC_GU  = 12   ,  // Greater Unsigned
+-       ICC_LEU =  4   ,  // Less or Equal Unsigned
+-       ICC_CC  = 13   ,  // Carry Clear/Great or Equal Unsigned
+-       ICC_CS  =  5   ,  // Carry Set/Less Unsigned
+-       ICC_POS = 14   ,  // Positive
+-       ICC_NEG =  6   ,  // Negative
+-       ICC_VC  = 15   ,  // Overflow Clear
+-       ICC_VS  =  7   ,  // Overflow Set
+- 
+-       FCC_A   =  8+16,  // Always
+-       FCC_N   =  0+16,  // Never
+-       FCC_U   =  7+16,  // Unordered
+-       FCC_G   =  6+16,  // Greater
+-       FCC_UG  =  5+16,  // Unordered or Greater
+-       FCC_L   =  4+16,  // Less
+-       FCC_UL  =  3+16,  // Unordered or Less
+-       FCC_LG  =  2+16,  // Less or Greater
+-       FCC_NE  =  1+16,  // Not Equal
+-       FCC_E   =  9+16,  // Equal
+-       FCC_UE  = 10+16,  // Unordered or Equal
+-       FCC_GE  = 11+16,  // Greater or Equal
+-       FCC_UGE = 12+16,  // Unordered or Greater or Equal
+-       FCC_LE  = 13+16,  // Less or Equal
+-       FCC_ULE = 14+16,  // Unordered or Less or Equal
+-       FCC_O   = 15+16   // Ordered
+-     };
+-   }
+- 
+-   inline static const char *SPARCCondCodeToString(SPCC::CondCodes CC) {
+-     switch (CC) {
+-     case SPCC::ICC_A:   return "a";
+-     case SPCC::ICC_N:   return "n";
+-     case SPCC::ICC_NE:  return "ne";
+-     case SPCC::ICC_E:   return "e";
+-     case SPCC::ICC_G:   return "g";
+-     case SPCC::ICC_LE:  return "le";
+-     case SPCC::ICC_GE:  return "ge";
+-     case SPCC::ICC_L:   return "l";
+-     case SPCC::ICC_GU:  return "gu";
+-     case SPCC::ICC_LEU: return "leu";
+-     case SPCC::ICC_CC:  return "cc";
+-     case SPCC::ICC_CS:  return "cs";
+-     case SPCC::ICC_POS: return "pos";
+-     case SPCC::ICC_NEG: return "neg";
+-     case SPCC::ICC_VC:  return "vc";
+-     case SPCC::ICC_VS:  return "vs";
+-     case SPCC::FCC_A:   return "a";
+-     case SPCC::FCC_N:   return "n";
+-     case SPCC::FCC_U:   return "u";
+-     case SPCC::FCC_G:   return "g";
+-     case SPCC::FCC_UG:  return "ug";
+-     case SPCC::FCC_L:   return "l";
+-     case SPCC::FCC_UL:  return "ul";
+-     case SPCC::FCC_LG:  return "lg";
+-     case SPCC::FCC_NE:  return "ne";
+-     case SPCC::FCC_E:   return "e";
+-     case SPCC::FCC_UE:  return "ue";
+-     case SPCC::FCC_GE:  return "ge";
+-     case SPCC::FCC_UGE: return "uge";
+-     case SPCC::FCC_LE:  return "le";
+-     case SPCC::FCC_ULE: return "ule";
+-     case SPCC::FCC_O:   return "o";
+-     }
+-     llvm_unreachable("Invalid cond code");
+-   }
+- 
+-   inline static unsigned HI22(int64_t imm) {
+-     return (unsigned)((imm >> 10) & ((1 << 22)-1));
+-   }
+- 
+-   inline static unsigned LO10(int64_t imm) {
+-     return (unsigned)(imm & 0x3FF);
+-   }
+- 
+-   inline static unsigned HIX22(int64_t imm) {
+-     return HI22(~imm);
+-   }
+- 
+-   inline static unsigned LOX10(int64_t imm) {
+-     return ~LO10(~imm);
+-   }
+- 
+- }  // end namespace llvm
+- #endif
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCAInstrFormats.td llvm-3.7.0.src-orig/lib/Target/JCA/JCAInstrFormats.td
+*** llvm-3.7.0.src/lib/Target/JCA/JCAInstrFormats.td	2015-11-12 14:24:52.330413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCAInstrFormats.td	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,28 ****
+- //===-- JCAInstrFormats.td - JCA Instruction Formats ---*- tablegen -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- class InstJCA<dag outs, dag ins, string asmstr, list<dag> pattern>
+-           : Instruction {
+-   field bits<32> Inst;
+- 
+-   let Namespace = "JCA";
+-   let Size = 4;
+- 
+-   dag OutOperandList = outs;
+-   dag InOperandList = ins;
+-   let AsmString   = asmstr;
+-   let Pattern = pattern;
+- }
+- 
+- // pseudo instruction format
+- class JCAPseudoInst<dag outs, dag ins, string asmstr, list<dag> pattern>
+- 	: InstJCA<outs, ins, asmstr, pattern> {
+- 	let isPseudo = 1;
+- }
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCAInstrInfo.cpp llvm-3.7.0.src-orig/lib/Target/JCA/JCAInstrInfo.cpp
+*** llvm-3.7.0.src/lib/Target/JCA/JCAInstrInfo.cpp	2016-01-03 18:47:57.954207335 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCAInstrInfo.cpp	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,292 ****
+- //===-- JCAInstrInfo.cpp - JCA Instruction Information ----------------===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file contains the JCA implementation of the TargetInstrInfo class.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #include "JCAInstrInfo.h"
+- #include "JCA.h"
+- #include "JCAMachineFunctionInfo.h"
+- #include "JCASubtarget.h"
+- #include "llvm/ADT/STLExtras.h"
+- #include "llvm/ADT/SmallVector.h"
+- #include "llvm/CodeGen/MachineFrameInfo.h"
+- #include "llvm/CodeGen/MachineInstrBuilder.h"
+- #include "llvm/CodeGen/MachineMemOperand.h"
+- #include "llvm/CodeGen/MachineRegisterInfo.h"
+- #include "llvm/Support/ErrorHandling.h"
+- #include "llvm/Support/TargetRegistry.h"
+- 
+- using namespace llvm;
+- 
+- #define GET_INSTRINFO_CTOR_DTOR
+- #include "JCAGenInstrInfo.inc"
+- 
+- // Pin the vtable to this file.
+- void JCAInstrInfo::anchor() {}
+- 
+- JCAInstrInfo::JCAInstrInfo(JCASubtarget &ST)
+-     : JCAGenInstrInfo(JCA::ADJCALLSTACKDOWN, JCA::ADJCALLSTACKUP), RI(),
+-       Subtarget(ST) {}
+- 
+- /// isLoadFromStackSlot - If the specified machine instruction is a direct
+- /// load from a stack slot, return the virtual or physical register number of
+- /// the destination along with the FrameIndex of the loaded stack slot.  If
+- /// not, return 0.  This predicate must return 0 if the instruction has
+- /// any side effects other than loading from the stack slot.
+- unsigned JCAInstrInfo::isLoadFromStackSlot(const MachineInstr *MI,
+-                                              int &FrameIndex) const {
+- 	if(MI->getOpcode() == JCA::LOADst)
+- 	{
+- 		FrameIndex = MI->getOperand(1).getIndex();
+- 		return MI->getOperand(0).getReg();
+- 	}
+- 	return 0;
+- }
+- 
+- /// isStoreToStackSlot - If the specified machine instruction is a direct
+- /// store to a stack slot, return the virtual or physical register number of
+- /// the source reg along with the FrameIndex of the loaded stack slot.  If
+- /// not, return 0.  This predicate must return 0 if the instruction has
+- /// any side effects other than storing to the stack slot.
+- unsigned JCAInstrInfo::isStoreToStackSlot(const MachineInstr *MI,
+-                                             int &FrameIndex) const {
+- 	if(MI->getOpcode() == JCA::STOREst)
+- 	{
+- 		FrameIndex = MI->getOperand(0).getIndex();
+- 		return MI->getOperand(1).getReg();
+- 	}
+- 	return 0;
+- }
+- 
+- void JCAInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
+-                                  MachineBasicBlock::iterator I, DebugLoc DL,
+-                                  unsigned DestReg, unsigned SrcReg,
+-                                  bool KillSrc) const {
+-   if (JCA::IntRegsRegClass.contains(DestReg, SrcReg))
+-     BuildMI(MBB, I, DL, get(JCA::ADDri), DestReg)
+-       .addReg(SrcReg, getKillRegState(KillSrc))
+- 	.addImm(0);
+- }
+- 
+- bool JCAInstrInfo::AnalyzeBranch(MachineBasicBlock &MBB,
+- 				MachineBasicBlock *&TBB,
+- 				MachineBasicBlock *&FBB,
+- 				SmallVectorImpl<MachineOperand> &Cond,
+- 				bool AllowModify) const {
+- /*	bool HasCondBranch = false;
+- 	TBB = nullptr;
+- 	FBB = nullptr;
+- 	for (MachineInstr &MI : MBB) {
+- 		if (MI.getOpcode == LEG::B) {
+- 			MachineBasicBlock *TargetBB = MI.getOperand(0).getMBB();
+- 			if (HasCondBranch)
+- 				FBB = TargetBB;
+- 			else
+- 				TBB = TargetBB;
+- 		} else if(MI.getOpcode() == LEB::Bcc) {
+- 			MachineBasicBlock *TargetBB = MI.getOperand(1).getMBB();
+- 			TBB = TargetBB;
+- 			Cond.push_back(MI.getOperand(0));
+- 			HasCondBranch = true;
+- 		}
+- 	}*/
+- 	//return false;
+- 
+- 	return true;
+- }
+- 
+- unsigned JCAInstrInfo::RemoveBranch(MachineBasicBlock &MBB) const {
+- 	if(MBB.empty())
+- 		return 0;
+- 	unsigned NumRemoved = 0;
+- /*	auto I = MBB.end();
+- 	do {
+- 		--I;
+- 		unsigned Opc = I->getOpcode();
+- 		if((Opc == LEG::B) || (Opc == LEG::Bcc)) {
+- 			auto ToDelete = I;
+- 			++I;
+- 			MBB.erase(ToDelete);
+- 			NumRemoved++;
+- 		}
+- 	} while(I != MBB.begin());*/
+- 	return NumRemoved;
+- }
+- 
+- unsigned JCAInstrInfo::InsertBranch(MachineBasicBlock &MBB,
+- 				MachineBasicBlock *TBB,
+- 				MachineBasicBlock *FBB,
+- 				ArrayRef<MachineOperand> Cond,
+- 				DebugLoc DL) const {
+- 	unsigned NumInserted = 0;
+- 
+- /*	if(Cond.size() > 0) {
+- 		BuildMI(MBB, MBB.end(), DL, get(LEG::Gbb)).addOperand(Cond[0]).addMBB(TBB);
+- 		NumInserted++;
+- 	}
+- 	
+- 	if(Cond.empty() || FBB) {
+- 		BuildMI(MBB, MBB.end(), DL, get(LEG::B)).addMBB(Cond.empty() ? TBB : FBB);
+- 		NumInserted++;
+- 	}*/
+- 
+- 	return NumInserted;
+- }
+- 
+- void JCAInstrInfo::EncodeGETfi(MachineBasicBlock &MBB,
+- 		MachineBasicBlock::iterator MI,
+- 		DebugLoc DL,
+- 		unsigned DstReg,
+- 		int FrameIndex) const
+- {
+- 	if(FrameIndex < -16 || FrameIndex > 15)
+- 	{
+- 		// need to assign to destination register
+- 		//   first, then add SP
+- 		BuildMI(MBB, MI, DL, get(JCA::LIT), DstReg)
+- 			.addImm(FrameIndex);
+- 		BuildMI(MBB, MI, DL, get(JCA::ADDrr), DstReg)
+- 			.addReg(DstReg).addReg(JCA::SP);
+- 	}
+- 	else
+- 	{
+- 		// can do it all in a single add instruction
+- 		BuildMI(MBB, MI, DL, get(JCA::ADDri), DstReg)
+- 			.addReg(JCA::SP).addImm(FrameIndex);
+- 	}
+- }
+- 
+- void JCAInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
+- 				MachineBasicBlock::iterator I,
+- 				unsigned SrcReg,
+- 				bool isKill,
+- 				int FrameIndex,
+- 				const TargetRegisterClass *RC,
+- 				const TargetRegisterInfo *TRI) const
+- {
+- 	BuildMI(MBB, I, I->getDebugLoc(), get(JCA::STOREst))
+- 		.addReg(SrcReg)
+- 		.addFrameIndex(FrameIndex);
+- }
+- 
+- void JCAInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
+- 				MachineBasicBlock::iterator I,
+- 				unsigned DestReg,
+- 				int FrameIndex,
+- 				const TargetRegisterClass *RC,
+- 				const TargetRegisterInfo *TRI) const
+- {
+- 	BuildMI(MBB, I, I->getDebugLoc(), get(JCA::LOADst), DestReg)
+- 		.addFrameIndex(FrameIndex);
+- }
+- 
+- bool JCAInstrInfo::expandPostRAPseudo(MachineBasicBlock::iterator MI) const
+- {
+- 	switch (MI->getOpcode())
+- 	{
+- 		default:
+- 			return false;
+- 	
+- 		case JCA::GETfi:
+- 		{
+- 			//  Load frame index to register
+- 			//    First, load the index to a register, then
+- 			//    add it to SP into the destination
+- 
+- 			DebugLoc DL = MI->getDebugLoc();
+- 			MachineBasicBlock &MBB = *MI->getParent();
+- 
+- 			const unsigned DstReg = MI->getOperand(0).getReg();
+- 			const int64_t FrameIndex = MI->getOperand(1).getImm();
+- 
+- 			if(FrameIndex == 0)
+- 			{
+- 				// Encode as a move
+- 				BuildMI(MBB, MI, DL, get(JCA::MOVrr), DstReg).addReg(JCA::SP);
+- 			}
+- 			else
+- 				EncodeGETfi(MBB, MI, DL, DstReg, FrameIndex);
+- 
+- 			MBB.erase(MI);
+- 			return true;
+- 		}
+- 
+- 		case JCA::STOREst:
+- 		case JCA::STOREstw:
+- 		case JCA::STOREstb:
+- 		{
+- 			// Store register in op(0) to integer frame offset in op(1)
+- 			// R1 is set as an implicit def
+- 
+- 			DebugLoc DL = MI->getDebugLoc();
+- 			MachineBasicBlock &MBB = *MI->getParent();
+- 
+- 			const unsigned SrcReg = MI->getOperand(0).getReg();
+- 			int64_t FrameIndex = MI->getOperand(1).getImm();
+- //			FrameIndex = MFI.getObjectOffset(FrameIndex) +
+- //				MFI.getStackSize();
+- 			unsigned AddrReg = JCA::R1;
+- 
+- 			unsigned op = JCA::STORE;
+- 			if(MI->getOpcode() == JCA::STOREstw)
+- 				op = JCA::STOREw;
+- 			else if(MI->getOpcode() == JCA::STOREstb)
+- 				op = JCA::STOREb;
+- 
+- 			if(FrameIndex == 0)
+- 				AddrReg = JCA::SP;
+- 			else
+- 				EncodeGETfi(MBB, MI, MI->getDebugLoc(), AddrReg, FrameIndex);
+- 
+- 			BuildMI(MBB, MI, DL, get(op))
+- 				.addReg(SrcReg)
+- 				.addReg(AddrReg);
+- 
+- 			MBB.erase(MI);
+- 			return true;
+- 		}
+- 
+- 		case JCA::LOADst:
+- 		case JCA::LOADstw:
+- 		case JCA::LOADstb:
+- 		{
+- 			// Load value from integer frame offset in op(1) to register op(0)
+- 			// R1 is set as an implicit def
+- 
+- 			DebugLoc DL = MI->getDebugLoc();
+- 			MachineBasicBlock &MBB = *MI->getParent();
+- 
+- 			const unsigned DstReg = MI->getOperand(0).getReg();
+- 			int64_t FrameIndex = MI->getOperand(1).getImm();
+- //			FrameIndex = MFI.getObjectOffset(FrameIndex) +
+- //				MFI.getStackSize();
+- 			unsigned AddrReg = JCA::R1;
+- 
+- 			unsigned op = JCA::LOAD;
+- 			if(MI->getOpcode() == JCA::LOADstw)
+- 				op = JCA::LOADw;
+- 			else if(MI->getOpcode() == JCA::LOADstb)
+- 				op = JCA::LOADb;
+- 
+- 			if(FrameIndex == 0)
+- 				AddrReg = JCA::SP;
+- 			else
+- 				EncodeGETfi(MBB, MI, MI->getDebugLoc(), AddrReg, FrameIndex);
+- 
+- 			BuildMI(MBB, MI, DL, get(op), DstReg)
+- 				.addReg(AddrReg);
+- 
+- 			MBB.erase(MI);
+- 			return true;
+- 		}
+- 	}
+- }
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCAInstrInfo.h llvm-3.7.0.src-orig/lib/Target/JCA/JCAInstrInfo.h
+*** llvm-3.7.0.src/lib/Target/JCA/JCAInstrInfo.h	2015-11-14 15:36:32.510372431 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCAInstrInfo.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,110 ****
+- //===-- JCAInstrInfo.h - JCA Instruction Information --------*- C++ -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file contains the JCA implementation of the TargetInstrInfo class.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #ifndef LLVM_LIB_TARGET_SPARC_SPARCINSTRINFO_H
+- #define LLVM_LIB_TARGET_SPARC_SPARCINSTRINFO_H
+- 
+- #include "JCARegisterInfo.h"
+- #include "llvm/Target/TargetInstrInfo.h"
+- 
+- #define GET_INSTRINFO_HEADER
+- #include "JCAGenInstrInfo.inc"
+- 
+- namespace llvm {
+- 
+- class JCASubtarget;
+- 
+- /// SPII - This namespace holds all of the target specific flags that
+- /// instruction info tracks.
+- ///
+- namespace SPII {
+-   enum {
+-     Pseudo = (1<<0),
+-     Load = (1<<1),
+-     Store = (1<<2),
+-     DelaySlot = (1<<3)
+-   };
+- }
+- 
+- class JCAInstrInfo : public JCAGenInstrInfo {
+-   const JCARegisterInfo RI;
+-   const JCASubtarget& Subtarget;
+-   virtual void anchor();
+- public:
+-   explicit JCAInstrInfo(JCASubtarget &ST);
+- 
+-   /// getRegisterInfo - TargetInstrInfo is a superset of MRegister info.  As
+-   /// such, whenever a client has an instance of instruction info, it should
+-   /// always be able to get register info as well (through this method).
+-   ///
+-   const JCARegisterInfo &getRegisterInfo() const { return RI; }
+- 
+-   /// isLoadFromStackSlot - If the specified machine instruction is a direct
+-   /// load from a stack slot, return the virtual or physical register number of
+-   /// the destination along with the FrameIndex of the loaded stack slot.  If
+-   /// not, return 0.  This predicate must return 0 if the instruction has
+-   /// any side effects other than loading from the stack slot.
+-   unsigned isLoadFromStackSlot(const MachineInstr *MI,
+-                                int &FrameIndex) const override;
+- 
+-   /// isStoreToStackSlot - If the specified machine instruction is a direct
+-   /// store to a stack slot, return the virtual or physical register number of
+-   /// the source reg along with the FrameIndex of the loaded stack slot.  If
+-   /// not, return 0.  This predicate must return 0 if the instruction has
+-   /// any side effects other than storing to the stack slot.
+-   unsigned isStoreToStackSlot(const MachineInstr *MI,
+-                               int &FrameIndex) const override;
+- 
+-   bool AnalyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
+-                      MachineBasicBlock *&FBB,
+-                      SmallVectorImpl<MachineOperand> &Cond,
+-                      bool AllowModify = false) const override ;
+- 
+-   unsigned RemoveBranch(MachineBasicBlock &MBB) const override;
+- 
+-   unsigned InsertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
+-                         MachineBasicBlock *FBB, ArrayRef<MachineOperand> Cond,
+-                         DebugLoc DL) const override;
+- 
+-   void copyPhysReg(MachineBasicBlock &MBB,
+-                    MachineBasicBlock::iterator I, DebugLoc DL,
+-                    unsigned DestReg, unsigned SrcReg,
+-                    bool KillSrc) const override;
+- 
+-   void storeRegToStackSlot(MachineBasicBlock &MBB,
+-                            MachineBasicBlock::iterator MBBI,
+-                            unsigned SrcReg, bool isKill, int FrameIndex,
+-                            const TargetRegisterClass *RC,
+-                            const TargetRegisterInfo *TRI) const override;
+- 
+-   void loadRegFromStackSlot(MachineBasicBlock &MBB,
+-                             MachineBasicBlock::iterator MBBI,
+-                             unsigned DestReg, int FrameIndex,
+-                             const TargetRegisterClass *RC,
+-                             const TargetRegisterInfo *TRI) const override;
+- 
+-   virtual bool expandPostRAPseudo(MachineBasicBlock::iterator MI) const override;
+- 
+- private:
+-   void EncodeGETfi(MachineBasicBlock &MBB,
+- 		MachineBasicBlock::iterator MI,
+- 		DebugLoc DL,
+- 		unsigned DstReg,
+- 		int FrameIndex) const;
+- 
+- };
+- 
+- 
+- }
+- 
+- #endif
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCAInstrInfo.td llvm-3.7.0.src-orig/lib/Target/JCA/JCAInstrInfo.td
+*** llvm-3.7.0.src/lib/Target/JCA/JCAInstrInfo.td	2016-01-23 17:22:22.461059035 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCAInstrInfo.td	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,257 ****
+- //===-- JCAInstrInfo.td - Target Description for JCA Target -----------===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file describes the JCA instructions in TableGen format.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- //===----------------------------------------------------------------------===//
+- // Instruction format superclass
+- //===----------------------------------------------------------------------===//
+- 
+- include "JCAInstrFormats.td"
+- include "JCAOperators.td"
+- 
+- // define a signed integer that fits in 11 bits (used for relative jumps/mov)
+- def simm11  : PatLeaf<(imm), [{ return isInt<11>(N->getSExtValue()); }]>;
+- 
+- // define a signed integer that fits in 5 bits (all constants)
+- def simm5   : PatLeaf<(imm), [{ return isInt<5>(N->getSExtValue()); }]>;
+- 
+- // 25 bit positive integer for literal instructions (not to r1)
+- def zimm25  : PatLeaf<(imm), [{ return isUInt<25>(N->getSExtValue()); }]>;
+- 
+- // 31 bit positive integer for literal instructions to r1
+- def zimm31	: PatLeaf<(imm), [{ return isUInt<31>(N->getSExtValue()); }]>;
+- 
+- // 25 bit negative integer
+- def nimm25  : PatLeaf<(imm), [{ return isUInt<25>(~N->getSExtValue()); }]>;
+- 
+- // 31 bit negative integer
+- def nimm31  : PatLeaf<(imm), [{ return isUInt<31>(~N->getSExtValue()); }]>;
+- 
+- // a frameindex operand
+- def AddrFI  : ComplexPattern<i32, 1, "SelectAddrFI", [frameindex], []>;
+- 
+- def b_target : Operand<OtherVT>;
+- def selectcc_out	: Operand<OtherVT>;
+- 
+- 
+- /* Most JCA instructions accept two inputs and assign to a third
+- 	The two source locations can be either immediates or registers.
+- 	The destination has to be a register.
+-    We implement a multiclass here to handle these efficiently. */
+- 
+- multiclass RegularInst <string OpcStr, SDNode OpNode> {
+- 	def rr :	InstJCA	<(outs IntRegs:$dst),
+- 				(ins IntRegs:$srca, IntRegs:$srcb),
+- 				!strconcat(OpcStr, " $srca, $srcb -> $dst ;"),
+- 				[(set i32:$dst, (OpNode i32:$srca, i32:$srcb))]>;
+- 
+- 	def ri :	InstJCA	<(outs IntRegs:$dst),
+- 				(ins IntRegs:$srca, i32imm:$srcb),
+- 				!strconcat(OpcStr, " $srca, $srcb -> $dst ;"),
+- 				[(set i32:$dst, (OpNode i32:$srca, simm5:$srcb))]>;
+- }
+- multiclass RegularInstOneOp <string OpcStr, SDNode OpNode> {
+- 	def r :		InstJCA	<(outs IntRegs:$dst),
+- 				(ins IntRegs:$srca),
+- 				!strconcat(OpcStr, " $srca -> $dst ;"),
+- 				[(set i32:$dst, (OpNode i32:$srca))]>;
+- 
+- 	def i :		InstJCA	<(outs IntRegs:$dst),
+- 				(ins i32imm:$srca),
+- 				!strconcat(OpcStr, " $srca -> $dst ;"),
+- 				[(set i32:$dst, (OpNode simm5:$srca))]>;
+- }
+- multiclass RegularInstWithCarry <string OpcStr, SDNode OpNode> {
+- 	def crr :	InstJCA	<(outs IntRegs:$dst),
+- 				(ins IntRegs:$srca, IntRegs:$srcb, IntRegs:$condreg),
+- 				!strconcat(OpcStr, " $srca, $srcb -> $dst ;\n\t",
+- 					OpcStr, "(c $condreg) $dst, 1 -> $dst ;"),
+- 				[]>;
+- 
+- 	def cri :	InstJCA	<(outs IntRegs:$dst),
+- 				(ins IntRegs:$srca, i32imm:$srcb, IntRegs:$condreg),
+- 				!strconcat(OpcStr, " $srca, $srcb -> $dst ;\n\t",
+- 					OpcStr, "(c $condreg) $dst, 1 -> $dst ;"),
+- 				[]>;
+- }
+- multiclass RegularInstWithCarrySetting <string OpcStr, SDNode OpNode> {
+- 	def csrr :	InstJCA	<(outs IntRegs:$dst),
+- 				(ins IntRegs:$srca, IntRegs:$srcb),
+- 				!strconcat(OpcStr, "(f) $srca, $srcb -> $dst ;"),
+- 				[]>;
+- 
+- 	def csri :	InstJCA	<(outs IntRegs:$dst),
+- 				(ins IntRegs:$srca, i32imm:$srcb),
+- 				!strconcat(OpcStr, "(f) $srca, $srcb -> $dst ;"),
+- 				[]>;
+- }
+- 
+- // Literal instructions
+- def MOVir	: InstJCA<(outs IntRegs:$dst), (ins i32imm:$src),
+- 			"mov $src -> $dst ;",
+- 			[(set i32:$dst, simm11:$src)]>;
+- 
+- def	LIT	: InstJCA<(outs IntRegs:$dst), (ins i32imm:$src),
+- 			"lit $src -> $dst ;",
+- 			[(set i32:$dst, zimm25:$src)]>;
+- 
+- def	LITn	: InstJCA<(outs IntRegs:$dst), (ins i32imm:$src),
+- 			"lit ~ $src -> $dst ;\n\tnot $dst -> $dst ;",
+- 			[(set i32:$dst, nimm25:$src)]>;
+- 
+- def	LITr1	: InstJCA<(outs IntRegs:$dst), (ins i32imm:$src),
+- 			"lit $src -> R1 ;\n\tmov R1 -> $dst ;",
+- 			[(set i32:$dst, zimm31:$src)]>;
+- 
+- def	LITr1n	: InstJCA<(outs IntRegs:$dst), (ins i32imm:$src),
+- 			"lit ~ $src -> R1 ;\n\tnot R1 -> $dst ;",
+- 			[(set i32:$dst, nimm31:$src)]>;
+- 
+- def LITsym	: InstJCA<(outs IntRegs:$dst), (ins i32imm:$src),
+- 			"lit $src -> $dst ;",
+- 			[(set i32:$dst, tglobaladdr:$src)]>;
+- 
+- def : Pattern<(i32 (load_sym tglobaladdr:$addr)), [(LITsym $addr)]>;
+- 
+- /* ALU instructions */
+- defm	ADD	: RegularInst<"add", add>;
+- defm	ADD : RegularInstWithCarry<"add", add>;
+- defm	ADD : RegularInstWithCarrySetting<"add", addc>;
+- defm	SUB	: RegularInst<"sub", sub>;
+- defm	SUB : RegularInstWithCarry<"sub", sub>;
+- defm	SUB : RegularInstWithCarrySetting<"sub", subc>;
+- defm	AND	: RegularInst<"and", and>;
+- defm	OR	: RegularInst<"or", or>;
+- defm	XOR	: RegularInst<"xor", xor>;
+- defm	SHL	: RegularInst<"lsh", shl>;
+- defm	SHR	: RegularInst<"rsh", srl>;
+- defm	MUL : RegularInst<"mul", mul>;
+- 
+- def NEGr	: InstJCA<(outs IntRegs:$dst), (ins IntRegs:$src),
+- 				"sub 0, $src -> $dst ;",
+- 				[]>;
+- 
+- /* Load/Store */
+- def	LOAD	: InstJCA<(outs IntRegs:$dst), (ins IntRegs:$src),
+- 			"load $src -> $dst ;",
+- 			[(set i32:$dst, (load i32:$src))]>;
+- def	STORE	: InstJCA<(outs), (ins IntRegs:$src, IntRegs:$dst),
+- 			"store $src -> $dst ;",
+- 			[(store i32:$src, i32:$dst)]>;
+- def	LOADw	: InstJCA<(outs IntRegs:$dst), (ins IntRegs:$src),
+- 			"load $src, 2 -> $dst ;",
+- 			[(set i32:$dst, (zextloadi16 i32:$src))]>;
+- def	STOREw	: InstJCA<(outs), (ins IntRegs:$src, IntRegs:$dst),
+- 			"store $src, 2 -> $dst ;",
+- 			[(truncstorei16 i32:$src, i32:$dst)]>;
+- def	LOADb	: InstJCA<(outs IntRegs:$dst), (ins IntRegs:$src),
+- 			"load $src, 1 -> $dst ;",
+- 			[(set i32:$dst, (zextloadi8 i32:$src))]>;
+- def	STOREb	: InstJCA<(outs), (ins IntRegs:$src, IntRegs:$dst),
+- 			"store $src, 1 -> $dst ;",
+- 			[(truncstorei8 i32:$src, i32:$dst)]>;
+- def	LOADws	: InstJCA<(outs IntRegs:$dst), (ins IntRegs:$src),
+- 			"load $src, 2 -> $dst ;\n\tsext $dst, 2 -> $dst ;",
+- 			[(set i32:$dst, (sextloadi16 i32:$src))]>;
+- def	LOADwa	: InstJCA<(outs IntRegs:$dst), (ins IntRegs:$src),
+- 			"load $src, 2 -> $dst ;\n\tsext $dst, 2 -> $dst ;",
+- 			[(set i32:$dst, (extloadi16 i32:$src))]>;
+- def	LOADbs	: InstJCA<(outs IntRegs:$dst), (ins IntRegs:$src),
+- 			"load $src, 1 -> $dst ;\n\tsext $dst, 1 -> $dst ;",
+- 			[(set i32:$dst, (sextloadi8 i32:$src))]>;
+- def	LOADba	: InstJCA<(outs IntRegs:$dst), (ins IntRegs:$src),
+- 			"load $src, 1 -> $dst ;\n\tsext $dst, 1 -> $dst ;",
+- 			[(set i32:$dst, (extloadi8 i32:$src))]>;
+- 
+- /* Move - doesn't match anything, just used in internal expansions */
+- def MOVrr	: InstJCA<(outs IntRegs:$dst), (ins IntRegs:$src),
+- 			"m $src -> $dst ;",
+- 			[]>;
+- 
+- /* Load a frame index to a register */
+- let isPseudo = 1, Uses = [SP] in {
+- def	GETfi	: InstJCA<(outs IntRegs:$dst), (ins i32imm:$src),
+- 			"",
+- 			[(set i32:$dst, AddrFI:$src)]>;
+- }
+- 
+- /* Load/Store an instruction from a stack location */
+- let isPseudo = 1, Uses = [SP], Defs = [R1] in {
+- 	def LOADst	: InstJCA<(outs IntRegs:$dst), (ins i32imm:$src),
+- 				"", []>;
+- 	def STOREst	: InstJCA<(outs), (ins IntRegs:$src, i32imm:$dst),
+- 				"", []>;
+- 	def LOADstw	: InstJCA<(outs IntRegs:$dst), (ins i16imm:$src),
+- 				"", []>;
+- 	def STOREstw: InstJCA<(outs), (ins IntRegs:$src, i16imm:$dst),
+- 				"", []>;
+- 	def LOADstb	: InstJCA<(outs IntRegs:$dst), (ins i8imm:$src),
+- 				"", []>;
+- 	def STOREstb: InstJCA<(outs), (ins IntRegs:$src, i8imm:$dst),
+- 				"", []>;
+- }
+- 
+- /* Branch instructions */
+- let isTerminator = 1, isBranch = 1, isBarrier = 1 in {
+- 	def B	: InstJCA<(outs), (ins b_target:$dst),
+- 			"jrel $dst ;",
+- 			[(br bb:$dst)]>;
+- }
+- let isTerminator = 1, isBranch = 1 in {
+- 	def Bcc	: InstJCA<(outs), (ins i32imm:$cc, IntRegs:$cr, b_target:$dst),
+- 			"", []>;
+- }
+- 
+- /* Select */
+- def SELECTCC :	InstJCA<(outs selectcc_out:$dst),
+- 				(ins IntRegs:$lhs, IntRegs:$rhs, i32imm:$tval, i32imm:$fval,
+- 					i32imm:$cc),
+- 				"ENTER SELECT_CC CODE HERE",
+- 				[]>;
+- def SETCC :		InstJCA<(outs selectcc_out:$dst),
+- 				(ins IntRegs:$lhs, IntRegs:$rhs, i32imm:$cc),
+- 				"ENTER SET_CC CODE HERE",
+- 				[]>;
+- def SELECT :	InstJCA<(outs IntRegs:$dst),
+- 				(ins IntRegs:$cond, IntRegs:$tval, IntRegs:$fval),
+- 				"sub $cond, 1 -> r1 ;\n\tmov(z r1) $tval -> $dst ;\n\tmov(nz r1) $fval -> $dst ;",
+- 				[(set i32:$dst, (select i32:$cond, i32:$tval, i32:$fval))]>;
+- 
+- /* Call Instructions */
+- let isCall = 1, Defs = [LR], Uses = [SP] in {
+- 	def CALL :	InstJCA <(outs), (ins IntRegs:$addr),
+- 				"jlrel $addr ;",
+- 				[(JCACallFlag i32:$addr)]>;
+- 	def CALLabs :	InstJCA <(outs), (ins IntRegs:$addr),
+- 				"jl $addr ;",
+- 				[(JCACallAbsFlag i32:$addr)]>;
+- }
+- 
+- // Return - handles the custom node JCARetFlag produced in JCAISelLowering::LowerReturn
+- let isTerminator = 1, isReturn = 1, isBarrier = 1 in {
+- 	def RET	: 	InstJCA <(outs), (ins variable_ops),
+- 				"j LR;", [(JCARetFlag)]>;
+- }
+- 
+- // Pseudo Instructions
+- 
+- let Defs = [SP], Uses = [SP] in {
+- 	def ADJCALLSTACKDOWN	: JCAPseudoInst<(outs), (ins i32imm:$amt),
+- 					"# ADJCALLSTACKDOWN $amt",
+- 					[(callseq_start timm:$amt)]>;
+- 	def ADJCALLSTACKUP	: JCAPseudoInst<(outs),
+- 					(ins i32imm:$amt, i32imm:$amt2),
+- 					"# ADJCALLSTACKUP $amt",
+- 					[(callseq_end timm:$amt, timm:$amt2)]>;
+- 
+- }
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCAISelDAGToDAG.cpp llvm-3.7.0.src-orig/lib/Target/JCA/JCAISelDAGToDAG.cpp
+*** llvm-3.7.0.src/lib/Target/JCA/JCAISelDAGToDAG.cpp	2016-01-23 17:12:30.625059035 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCAISelDAGToDAG.cpp	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,342 ****
+- //===-- JCAISelDAGToDAG.cpp - A dag to dag inst selector for JCA ------===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file defines an instruction selector for the SPARC target.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #include "JCATargetMachine.h"
+- #include "llvm/CodeGen/SelectionDAGISel.h"
+- #include "llvm/IR/Intrinsics.h"
+- #include "llvm/Support/Compiler.h"
+- #include "llvm/Support/Debug.h"
+- #include "llvm/Support/ErrorHandling.h"
+- #include "llvm/Support/raw_ostream.h"
+- using namespace llvm;
+- 
+- //===----------------------------------------------------------------------===//
+- // Instruction Selector Implementation
+- //===----------------------------------------------------------------------===//
+- 
+- //===--------------------------------------------------------------------===//
+- /// JCADAGToDAGISel - JCA specific code to select JCA machine
+- /// instructions for SelectionDAG operations.
+- ///
+- namespace {
+- class JCADAGToDAGISel : public SelectionDAGISel {
+-   /// Subtarget - Keep a pointer to the JCA Subtarget around so that we can
+-   /// make the right decision when generating code for different targets.
+-   const JCASubtarget *Subtarget;
+- public:
+-   explicit JCADAGToDAGISel(JCATargetMachine &tm) : SelectionDAGISel(tm) {}
+- 
+-   bool runOnMachineFunction(MachineFunction &MF) override {
+-     Subtarget = &MF.getSubtarget<JCASubtarget>();
+-     return SelectionDAGISel::runOnMachineFunction(MF);
+-   }
+- 
+-   SDNode *Select(SDNode *N) override;
+- 
+-   bool SelectAddrFI(SDValue &N, SDValue &R);
+- 
+-   const char *getPassName() const override {
+-     return "JCA DAG->DAG Pattern Instruction Selection";
+-   }
+- 
+-   // Include the pieces autogenerated from the target description.
+- #include "JCAGenDAGISel.inc"
+- 
+- private:
+-   SDNode* getGlobalBaseReg();
+-   SDNode *SelectConditionalBranch(SDNode *N);
+-   SDNode *SelectConditionalBranchOnBit(SDNode *N);
+-   SDNode *SelectSelectCC(SDNode *N);
+-   SDNode *SelectSetCC(SDNode *N);
+-   SDNode *SelectAddSubWithCarry(SDNode *N);
+-   SDNode *SelectSra(SDNode *N);
+- };
+- }  // end anonymous namespace
+- 
+- SDNode *JCADAGToDAGISel::Select(SDNode *N) {
+-   switch (N->getOpcode()) {
+- 	case ISD::BR_CC:
+- 		return SelectConditionalBranch(N);
+- 	case ISD::BRCOND:
+- 		return SelectConditionalBranchOnBit(N);
+- 	case ISD::SELECT_CC:
+- 		return SelectSelectCC(N);
+- 	case ISD::SETCC:
+- 		return SelectSetCC(N);
+- 	case ISD::ADDE:
+- 	case ISD::ADDC:
+- 	case ISD::SUBE:
+- 	case ISD::SUBC:
+- 		return SelectAddSubWithCarry(N);
+- 	case ISD::SRA:
+- 		return SelectSra(N);
+- 	default:
+- 		  return SelectCode(N);
+-   }
+- }
+- 
+- /*	Handle sra (arithmetic shift right).  This is encoded as a logical
+-  *	shift right, with a negative shift value (-32 + shift val)
+-  *		Op(0):	Src
+-  *		Op(1):	Shift-amount
+-  *
+-  *		Value(0):	Dest
+-  */
+- SDNode *JCADAGToDAGISel::SelectSra(SDNode *N)
+- {
+- 	SDValue Sra = N->getOperand(0);
+- 	SDValue ShiftAmount = N->getOperand(1);
+- 
+- 	if(ShiftAmount.getNode()->getOpcode() == ISD::Constant)
+- 	{
+- 		const ConstantSDNode *CSDN = 
+- 			dyn_cast<ConstantSDNode>(ShiftAmount.getNode());
+- 		if(CSDN)
+- 		{
+- 			int64_t cval = CSDN->getSExtValue();
+- 			assert(cval >= 0 && "SRA needs positive value as shift operand");
+- 			
+- 			// Invert and ensure it fits in operand
+- 			cval = cval % 32;
+- 			cval = -32 + cval;
+- 
+- 			SDValue cvalsd = CurDAG->getTargetConstant(cval, N, MVT::i32);
+- 			SDValue opts[] = { Sra, cvalsd };
+- 			SDNode *ret = CurDAG->getMachineNode(JCA::SHRri, N, MVT::i32, opts);
+- 			return ret;
+- 		}
+- 	}
+- 
+- 	// If not an immediate, we need to negate it first
+- 	SDValue NegVal = CurDAG->getTargetConstant(32, N, MVT::i32);
+- 	SDValue negops[] = { ShiftAmount, NegVal };
+- 	SDNode *neg = CurDAG->getMachineNode(JCA::SUBri, N, MVT::i32, negops);
+- 
+- 	SDValue shrops[] = { Sra, SDValue(neg, 0) };
+- 	SDNode *ret = CurDAG->getMachineNode(JCA::SHRri, N, MVT::i32, shrops);
+- 	return ret;
+- }
+- 
+- 
+- /*	Handle adde/subb.  These are add/sub including carry flag.
+-  *		Op(0):	LHS
+-  *		Op(1):	RHS
+-  *		Op(2):	Carry flag
+-  *
+-  *		Value(0):	i32 <- LHS +/- RHS
+-  *		Value(1):	New carry flag
+-  *
+-  *	Also handle addc/subc.  These set carry but do not include it in the
+-  *	actual operation.
+-  *		Op(0):	LHS
+-  *		Op(1):	RHS
+-  *
+-  *		Value(0):	i32 <- LHS +/- RHS
+-  *		Value(1):	New carry flag
+-  */
+- SDNode *JCADAGToDAGISel::SelectAddSubWithCarry(SDNode *N)
+- {
+- 	SDValue LHS = N->getOperand(0);
+- 	SDValue RHS = N->getOperand(1);
+- 	SDValue Carry;
+- 
+- 	/* JCA encodes the output carry flag in the output operand itself
+- 	 * Therefore, we rewrite the output to use the carry value 0 as the
+- 	 * condreg too, and don't provide a distinct carry out.
+- 	 *
+- 	 * We encode a ADD/SUBcrr/ri instruction with inputs LHS, RHS, condreg
+- 	 */
+- 
+- 	// determine semantics of instruction
+- 	int op = 0;
+- 	if(N->getOpcode() == ISD::SUBE || N->getOpcode() == ISD::SUBC)
+- 		op |= 1;
+- 	if(N->getOpcode() == ISD::ADDC || N->getOpcode() == ISD::SUBC)
+- 		op |= 4;
+- 	else
+- 		Carry = SDValue(N->getOperand(2).getNode(), 0);
+- 
+- 	if(RHS.getNode()->getOpcode() == ISD::Constant)
+- 	{
+- 		const ConstantSDNode *CSDN = dyn_cast<ConstantSDNode>(RHS.getNode());
+- 		if(CSDN)
+- 		{
+- 			int64_t cval = CSDN->getSExtValue();
+- 			if(cval >= -16 && cval < 15)
+- 				op |= 2;
+- 		}
+- 	}
+- 
+- 	unsigned opcode = 0;
+- 	switch(op)
+- 	{
+- 		case 0:
+- 			opcode = JCA::ADDcrr;
+- 			break;
+- 		case 1:
+- 			opcode = JCA::SUBcrr;
+- 			break;
+- 		case 2:
+- 			opcode = JCA::ADDcri;
+- 			break;
+- 		case 3:
+- 			opcode = JCA::SUBcri;
+- 			break;
+- 		case 4:
+- 			opcode = JCA::ADDcsrr;
+- 			break;
+- 		case 5:
+- 			opcode = JCA::SUBcsrr;
+- 			break;
+- 		case 6:
+- 			opcode = JCA::ADDcsri;
+- 			break;
+- 		case 7:
+- 			opcode = JCA::SUBcsri;
+- 			break;
+- 	}
+- 
+- 	EVT tys[] = { MVT::i32 };
+- 
+- 	if(op & 4)
+- 	{
+- 		SDValue opts[]	= { LHS, RHS };
+- 		SDNode *ret = CurDAG->getMachineNode(opcode, N, tys, opts);
+- 		return ret;
+- 	}
+- 	else
+- 	{
+- 		SDValue opts[]	= { LHS, RHS, Carry };
+- 		SDNode *ret = CurDAG->getMachineNode(opcode, N, tys, opts);
+- 		return ret;
+- 	}
+- }
+- 
+- /*	Handle setcc.  This takes 3 operands and produces an i32:
+-  *		Op(0):	LHS
+-  *		Op(1):	RHS
+-  *		Op(2):	Condition code (of type CondCodeSDNode)
+-  *
+-  *		Value(0):	i32 <- either 'true' or 'false' depending on comparison
+-  */
+- SDNode *JCADAGToDAGISel::SelectSetCC(SDNode *N)
+- {
+- 	/*	JCA can handle this with 3 instructions:
+- 	 *		sub	lhs, rhs -> r1
+- 	 *		mov 0 -> dst
+- 	 *		sub(cc r1) dst, 1 -> dst (encodes true as all 1s, false as 0)
+- 	 *
+- 	 * 	Which we can emit as a single llvm instruction.  Unfortunately we have
+- 	 * 	to rewrite the node here as the default condition code is not
+- 	 * 	properly matched in tablegen
+- 	 */
+- 
+- 	SDValue LHS = N->getOperand(0);
+- 	SDValue RHS = N->getOperand(1);
+- 	SDValue cc = N->getOperand(2);
+- 
+- 	CondCodeSDNode *CC = cast<CondCodeSDNode>(cc.getNode());
+- 	SDValue CCVal = CurDAG->getTargetConstant(CC->get(), N, MVT::i32);
+- 	SDValue SetOps[] = { LHS, RHS, CCVal };
+- 	return CurDAG->getMachineNode(JCA::SETCC, N, MVT::i32, SetOps);
+- }
+- 
+- /*	Handle select_cc.  This takes 5 operands and produces an i32:
+-  *		Op(0):	LHS
+-  *		Op(1):	RHS
+-  *		Op(2):	Value-if-true
+-  *		Op(3):	Value-if-false
+-  *		Op(4):	Condition code (of type CondCodeSDNode)
+-  *
+-  *		Value(0):	i32 <- either Value-if-true or Value-if-false depending
+-  *						on comparison
+-  */
+- SDNode *JCADAGToDAGISel::SelectSelectCC(SDNode *N)
+- {
+- 	/*	JCA can handle this with 3 instructions:
+- 	 *		sub	lhs, rhs -> r1
+- 	 *		mov fval -> dst
+- 	 *		mov(cc r1) tval -> dst
+- 	 *
+- 	 * 	Which we can emit as a single llvm instruction.  Unfortunately we have
+- 	 * 	to rewrite the node here as the default condition code is not
+- 	 * 	properly matched in tablegen
+- 	 */
+- 
+- 	SDValue LHS = N->getOperand(0);
+- 	SDValue RHS = N->getOperand(1);
+- 	SDValue tval = N->getOperand(2);
+- 	SDValue fval = N->getOperand(3);
+- 	SDValue cc = N->getOperand(4);
+- 
+- 	CondCodeSDNode *CC = cast<CondCodeSDNode>(cc.getNode());
+- 	SDValue CCVal = CurDAG->getTargetConstant(CC->get(), N, MVT::i32);
+- 	SDValue SelectOps[] = { LHS, RHS, tval, fval, CCVal };
+- 	return CurDAG->getMachineNode(JCA::SELECTCC, N, MVT::i32, SelectOps);
+- }
+- 
+- 
+- /*	Handle the brcond instruction - this does a branch to Target if
+-  *	Cond is true (it is a single bit operand).
+-  */
+- SDNode *JCADAGToDAGISel::SelectConditionalBranchOnBit(SDNode *N)
+- {
+- 	SDValue Chain = N->getOperand(0);
+- 	SDValue Test = N->getOperand(1);
+- 	SDValue Target = N->getOperand(2);
+- 
+- 	// Encode the SETNE operator (i.e. not zero) into a node
+- 	SDValue setne = CurDAG->getConstant(ISD::SETNE, N, MVT::i32);
+- 
+- 	SDValue BranchOps[] = { setne, Test, Target, Chain };
+- 	SDNode *Branch = CurDAG->getMachineNode(JCA::Bcc, N, MVT::Other, BranchOps);
+- 	return Branch;
+- }
+- 
+- 	
+- /*	Handle brcc instruction - does a branch to Target if the comparison
+-  *	specified in Cond between LHS and RHS is true */
+- SDNode *JCADAGToDAGISel::SelectConditionalBranch(SDNode *N) {
+- 	SDValue Chain = N->getOperand(0);
+- 	SDValue Cond = N->getOperand(1);
+- 	SDValue LHS = N->getOperand(2);
+- 	SDValue RHS = N->getOperand(3);
+- 	SDValue Target = N->getOperand(4);
+- 
+- 	// Generate an instruction to do the compare (typically sub)
+- 	EVT CompareTys[] = { MVT::i32, MVT::Other, MVT::Glue };
+- 	SDValue CompareOps[] = { LHS, RHS, Chain };
+- 	SDNode *Compare = CurDAG->getMachineNode(JCA::SUBrr, N, CompareTys,
+- 		CompareOps);
+- 
+- 	// Generate branch depending on condition
+- 	CondCodeSDNode *CC = cast<CondCodeSDNode>(Cond.getNode());
+- 	SDValue CCVal = CurDAG->getTargetConstant(CC->get(), N, MVT::i32);
+- 	SDValue BranchOps[] = { CCVal, SDValue(Compare, 0), Target,
+- 		SDValue(Compare, 1), SDValue(Compare, 2) };
+- 	return CurDAG->getMachineNode(JCA::Bcc, N, MVT::Other, BranchOps);
+- }
+- 
+- FunctionPass *llvm::createJCAISelDag(JCATargetMachine &TM) {
+- 	return new JCADAGToDAGISel(TM);
+- }
+- 
+- bool JCADAGToDAGISel::SelectAddrFI(SDValue &N, SDValue &R)
+- {
+- 	if(N.getOpcode() != ISD::FrameIndex)
+- 		return false;
+- 	int FX = cast<FrameIndexSDNode>(N)->getIndex();
+- 	R = CurDAG->getTargetFrameIndex(FX, MVT::i32);
+- 	return true;
+- }
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCAISelLowering.cpp llvm-3.7.0.src-orig/lib/Target/JCA/JCAISelLowering.cpp
+*** llvm-3.7.0.src/lib/Target/JCA/JCAISelLowering.cpp	2016-01-15 18:55:16.949885369 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCAISelLowering.cpp	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,427 ****
+- //===-- JCAISelLowering.cpp - JCA DAG Lowering Implementation ---------===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file implements the interfaces that JCA uses to lower LLVM code into a
+- // selection DAG.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #include "JCAISelLowering.h"
+- #include "JCAMachineFunctionInfo.h"
+- #include "JCARegisterInfo.h"
+- #include "JCATargetMachine.h"
+- #include "JCATargetObjectFile.h"
+- #include "llvm/CodeGen/CallingConvLower.h"
+- #include "llvm/CodeGen/MachineFrameInfo.h"
+- #include "llvm/CodeGen/MachineFunction.h"
+- #include "llvm/CodeGen/MachineInstrBuilder.h"
+- #include "llvm/CodeGen/MachineRegisterInfo.h"
+- #include "llvm/CodeGen/SelectionDAG.h"
+- #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
+- #include "llvm/IR/DerivedTypes.h"
+- #include "llvm/IR/Function.h"
+- #include "llvm/IR/Module.h"
+- #include "llvm/Support/ErrorHandling.h"
+- using namespace llvm;
+- 
+- #include "JCAGenCallingConv.inc"
+- 
+- const char *JCATargetLowering::getTargetNodeName(unsigned Opcode) const {
+- 	switch(Opcode) {
+- 		default:
+- 			return NULL;
+- 		case JCAISD::RET_FLAG:	return "RetFlag";
+- 		case JCAISD::CALL:		return "call";
+- 		case JCAISD::CALLabs:	return "callabs";
+- 		case JCAISD::LOAD_SYM:	return "load_sym";
+- 	}
+- }
+- 
+- JCATargetLowering::JCATargetLowering(TargetMachine &TM,
+-                                          const JCASubtarget &STI)
+-     : TargetLowering(TM), Subtarget(&STI)
+- {
+-   // Set up the register classes.
+-   addRegisterClass(MVT::i32, &JCA::IntRegsRegClass);
+- 
+-   // JCA doesn't have i1 extending load
+-   for (MVT VT : MVT::integer_valuetypes())
+-   {
+-   	setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
+- 	setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i1, Promote);
+- 	setLoadExtAction(ISD::EXTLOAD, VT, MVT::i1, Promote);
+-   }
+- 
+-   // JCA doesn't have sext_inreg, replace them with shl/sra
+-   //setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i16, Expand);
+-   //setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i8 , Expand);
+-   //setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1 , Expand);
+- 
+-   // JCA has no REM or DIVREM operations.
+-   setOperationAction(ISD::UDIV, MVT::i32, Expand);
+-   setOperationAction(ISD::SDIV, MVT::i32, Expand);
+-   setOperationAction(ISD::UREM, MVT::i32, Expand);
+-   setOperationAction(ISD::SREM, MVT::i32, Expand);
+-   setOperationAction(ISD::SDIVREM, MVT::i32, Expand);
+-   setOperationAction(ISD::UDIVREM, MVT::i32, Expand);
+- 
+-   // More instructions we don't have
+-   setOperationAction(ISD::BSWAP, MVT::i32, Expand);
+-   setOperationAction(ISD::CTLZ, MVT::i32, Expand);
+-   setOperationAction(ISD::CTTZ, MVT::i32, Expand);
+-   setOperationAction(ISD::CTPOP, MVT::i32, Expand);
+-   setOperationAction(ISD::CTLZ_ZERO_UNDEF, MVT::i32, Expand);
+-   setOperationAction(ISD::CTTZ_ZERO_UNDEF, MVT::i32, Expand);
+-   setOperationAction(ISD::ROTL, MVT::i32, Expand);
+-   setOperationAction(ISD::ROTR, MVT::i32, Expand);
+-   setOperationAction(ISD::SHL_PARTS, MVT::i32, Expand);
+-   setOperationAction(ISD::SRA_PARTS, MVT::i32, Expand);
+-   setOperationAction(ISD::SRL_PARTS, MVT::i32, Expand);
+- 
+-   // Multiply 2 numbers (signed or unsigned) and return 2 32-bit numbers
+-   // Not supported
+-   setOperationAction(ISD::SMUL_LOHI, MVT::i32, Expand);
+-   setOperationAction(ISD::UMUL_LOHI, MVT::i32, Expand);
+- 
+-   // Multiply 2 numbers (signed or unsigned) and return high 32 bits
+-   // Not supported
+-   setOperationAction(ISD::MULHS, MVT::i32, Expand);
+-   setOperationAction(ISD::MULHU, MVT::i32, Expand);
+- 
+-   // VASTART needs to be custom lowered to use the VarArgsFrameIndex.
+-   setOperationAction(ISD::VASTART           , MVT::Other, Custom);
+-   // VAARG needs to be lowered to not do unaligned accesses for doubles.
+-   setOperationAction(ISD::VAARG             , MVT::Other, Custom);
+- 
+-   setOperationAction(ISD::TRAP              , MVT::Other, Legal);
+- 
+-   // Use the default implementation.
+-   setOperationAction(ISD::VACOPY            , MVT::Other, Expand);
+-   setOperationAction(ISD::VAEND             , MVT::Other, Expand);
+-   setOperationAction(ISD::STACKSAVE         , MVT::Other, Expand);
+-   setOperationAction(ISD::STACKRESTORE      , MVT::Other, Expand);
+-   setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i32  , Custom);
+- 
+-   // Lower global adresses to target global addresses
+-   setOperationAction(ISD::GlobalAddress, MVT::i32, Custom);
+- 
+-   setMinFunctionAlignment(4);
+- 
+-   computeRegisterProperties(Subtarget->getRegisterInfo());
+- }
+- 
+- /*EVT JCATargetLowering::getSetCCResultType(const DataLayout &, LLVMContext &,
+-                                             EVT VT) const {
+-   if (!VT.isVector())
+-     return MVT::i32;
+-   return VT.changeVectorElementTypeToInteger();
+- }*/
+- 
+- /* Custom lower certain nodes */
+- SDValue JCATargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const
+- {
+- 	switch(Op.getOpcode())
+- 	{
+- 		case ISD::GlobalAddress:
+- 			return LowerGlobalAddress(Op, DAG);
+- 		default:
+- 			llvm_unreachable("Unimplemented operand");
+- 	}
+- }
+- 
+- SDValue JCATargetLowering::LowerGlobalAddress(SDValue Op,
+- 		SelectionDAG &DAG) const
+- {
+- 	EVT VT = Op.getValueType();
+- 	GlobalAddressSDNode *GlobalAddr = cast<GlobalAddressSDNode>(Op.getNode());
+- 	SDValue TargetAddr = DAG.getTargetGlobalAddress(GlobalAddr->getGlobal(),
+- 			Op, MVT::i32, GlobalAddr->getOffset());
+- 	return DAG.getNode(JCAISD::LOAD_SYM, Op, VT, TargetAddr);
+- }
+- 
+- /* We are here required to convert the incoming arguments to a function
+- into a format the our instructions recognise.
+- 
+- Incoming arguments are in Ins, we add them back to InVals */
+- SDValue JCATargetLowering::LowerFormalArguments(SDValue Chain,
+- 		CallingConv::ID CallConv,
+- 		bool isVarArg,
+- 		const SmallVectorImpl<ISD::InputArg> &Ins,
+- 		SDLoc dl,
+- 		SelectionDAG &DAG,
+- 		SmallVectorImpl<SDValue> &InVals) const {
+- 	MachineFunction &MF = DAG.getMachineFunction();
+- 	MachineRegisterInfo &RegInfo = MF.getRegInfo();
+- 
+- 	assert(!isVarArg && "VarArg not supported");
+- 
+- 	// Ask the calling convention where the arguments are
+- 	SmallVector<CCValAssign, 16> ArgLocs;
+- 	CCState CCInfo(CallConv, isVarArg, DAG.getMachineFunction(),
+- 		ArgLocs, *DAG.getContext());
+- 
+- 	CCInfo.AnalyzeFormalArguments(Ins, CC_JCA);
+- 
+- 	for(auto &VA : ArgLocs) {
+- 		if(VA.isRegLoc()) {
+- 			EVT RegVT = VA.getLocVT();
+- 			assert(RegVT.getSimpleVT().SimpleTy == MVT::i32 &&
+- 				"Only support MVT::i32 register passing");
+- 			const unsigned VReg = RegInfo.createVirtualRegister(&JCA::IntRegsRegClass);
+- 			RegInfo.addLiveIn(VA.getLocReg(), VReg);
+- 			SDValue ArgIn = DAG.getCopyFromReg(Chain, dl, VReg, RegVT);
+- 			InVals.push_back(ArgIn);
+- 			continue;
+- 		}
+- 
+- 		assert(VA.isMemLoc() &&
+- 			"Cannot pass arguments by memory");
+- 
+- 		const unsigned Offset = VA.getLocMemOffset();
+- 
+- 		const int FI = MF.getFrameInfo()->CreateFixedObject(4, Offset, true);
+- 		EVT PtrTy = getPointerTy(DAG.getDataLayout());
+- 		SDValue FIPtr = DAG.getFrameIndex(FI, PtrTy);
+- 
+- 		assert(VA.getValVT() == MVT::i32 &&
+- 				"Only support passing arguments as i32");
+- 		SDValue Load = DAG.getLoad(VA.getValVT(), dl, Chain, FIPtr,
+- 				MachinePointerInfo(), false, false, false, 0);
+- 
+- 		InVals.push_back(Load);
+- 	}
+- 
+- 	return Chain;
+- }
+- 
+- // Similarly, get the value to put return arguments
+- SDValue JCATargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
+- 		bool isVarArg, const SmallVectorImpl<ISD::OutputArg> &Outs,
+- 		const SmallVectorImpl<SDValue> &OutVals, SDLoc dl,
+- 		SelectionDAG &DAG) const {
+- 	assert(!isVarArg && "VarArg not supported");
+- 
+- 	SmallVector<CCValAssign, 16> RVLocs;
+- 
+- 	CCState CCInfo(CallConv, isVarArg, DAG.getMachineFunction(),
+- 		RVLocs, *DAG.getContext());
+- 
+- 	CCInfo.AnalyzeReturn(Outs, RetCC_JCA);
+- 
+- 	SDValue Flag;
+- 	SmallVector<SDValue, 4> RetOps(1, Chain);
+- 
+- 	for(unsigned i = 0, e = RVLocs.size(); i < e; ++i) {
+- 		CCValAssign &VA = RVLocs[i];
+- 		assert(VA.isRegLoc() && "Can only return in registers!");
+- 
+- 		Chain = DAG.getCopyToReg(Chain, dl, VA.getLocReg(),
+- 			OutVals[i], Flag);
+- 
+- 		Flag = Chain.getValue(1);
+- 		RetOps.push_back(DAG.getRegister(VA.getLocReg(), VA.getLocVT()));
+- 	}
+- 
+- 	RetOps[0] = Chain;
+- 
+- 	if(Flag.getNode())
+- 		RetOps.push_back(Flag);
+- 
+- 	return DAG.getNode(JCAISD::RET_FLAG, dl, MVT::Other, RetOps);
+- }
+- 
+- /* LowerCall converts an IR call instruction to DAG nodes specific for this
+-  * architecture.
+-  *
+-  * Inputs are in the CallLoweringInfo structure.
+-  * We fill the InVals vector with return values from the call.
+-  * Return a chain of DAG nodes
+-  */
+- SDValue JCATargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
+- 				SmallVectorImpl<SDValue> &InVals) const
+- {
+- 	// Extract members of CallLoweringInfo
+- 	SelectionDAG &DAG = CLI.DAG;
+- 	SDLoc &Loc = CLI.DL;
+- 	SmallVectorImpl<ISD::OutputArg> &Outs = CLI.Outs;
+- 	SmallVectorImpl<SDValue> &OutVals = CLI.OutVals;
+- 	SmallVectorImpl<ISD::InputArg> &Ins = CLI.Ins;
+- 	SDValue Chain = CLI.Chain;
+- 	SDValue Callee = CLI.Callee;
+- 	CallingConv::ID CallConv = CLI.CallConv;
+- 	const bool isVarArg = false;
+- 
+- 	assert(!isVarArg && "VarArg not implemented");
+- 
+- 	// analyze the call's operands with the current calling convention
+- 	SmallVector<CCValAssign, 16> ArgLocs;
+- 	CCState CCInfo(CallConv, isVarArg, DAG.getMachineFunction(), ArgLocs,
+- 					*DAG.getContext());
+- 	CCInfo.AnalyzeCallOperands(Outs, CC_JCA);
+- 
+- 	// compute how much stack space the outgoing arguments will require
+- 	const unsigned NumBytes = CCInfo.getNextStackOffset();
+- 
+- 	// Start building a chain of DAG nodes for the call.  First entry is
+- 	// a callseq_start pseudo instruction with the number of stack bytes as
+- 	// an argument
+- 	Chain = DAG.getCALLSEQ_START(Chain,
+- 					DAG.getIntPtrConstant(NumBytes, Loc, true), Loc);
+- 
+- 	// Separate the CC argument types into a list of registers and stacklocs
+- 	SmallVector<std::pair<unsigned, SDValue>, 8> RegsToPass;
+- 	SmallVector<SDValue, 8> MemOpChains;
+- 	for(unsigned i = 0, e = ArgLocs.size(); i != e; ++i)
+- 	{
+- 		CCValAssign &VA = ArgLocs[i];
+- 		SDValue Arg = OutVals[i];
+- 
+- 		// We only handle fully promoted arguments
+- 		assert(VA.getLocInfo() == CCValAssign::Full && "Unhandled loc info");
+- 
+- 		if(VA.isRegLoc())
+- 		{
+- 			RegsToPass.push_back(std::make_pair(VA.getLocReg(), Arg));
+- 			continue;
+- 		}
+- 
+- 		assert(VA.isMemLoc() &&
+- 			"Only support passing arguments through registers or via the stack");
+- 
+- 		// build a list of DAG nodes containing:
+- 		// 	(store reg, (add stack_pos, SP))
+- 		SDValue StackPtr = DAG.getRegister(JCA::SP, MVT::i32);
+- 		SDValue PtrOff = DAG.getIntPtrConstant(VA.getLocMemOffset(), Loc);
+- 		SDValue add = DAG.getNode(ISD::ADD, Loc, MVT::i32, StackPtr, PtrOff);
+- 		SDValue store = DAG.getStore(Chain, Loc, Arg, add,
+- 						MachinePointerInfo(), false, false, 0);
+- 		MemOpChains.push_back(store);
+- 	}
+- 
+- 	// Now add all stores to the chain we are building
+- 	if(!MemOpChains.empty())
+- 		Chain = DAG.getNode(ISD::TokenFactor, Loc, MVT::Other, MemOpChains);
+- 
+- 	// Now add all register stores
+- 	SDValue InFlag;
+- 	for(auto &Reg : RegsToPass) {
+- 		Chain = DAG.getCopyToReg(Chain, Loc, Reg.first, Reg.second, InFlag);
+- 		InFlag = Chain.getValue(1);
+- 	}
+- 
+- 	unsigned call_inst = JCAISD::CALL;
+- 
+- 	switch(Callee->getOpcode())
+- 	{
+- 		case ISD::GlobalAddress:
+- 		{
+- 			// We only support calling global addresses
+- 			GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee);
+- 			assert(G && "We only support the calling of global addresses");
+- 
+- 			// Convert callee to a GlobalAddress of a pointer type
+- 			EVT PtrVT = getPointerTy(DAG.getDataLayout());
+- 			Callee = DAG.getTargetGlobalAddress(G->getGlobal(), Loc, PtrVT);
+- 			break;
+- 		}
+- 		case ISD::ExternalSymbol:
+- 		{
+- 			// Convert to target external symbol
+- 			ExternalSymbolSDNode *ES = dyn_cast<ExternalSymbolSDNode>(Callee);
+- 			assert(ES && "Not an external symbol");
+- 
+- 			EVT PtrVT = getPointerTy(DAG.getDataLayout());
+- 			Callee = DAG.getTargetExternalSymbol(ES->getSymbol(), PtrVT,
+- 					ES->getTargetFlags());
+- 			break;
+- 		}
+- 		case ISD::Constant:
+- 			call_inst = JCAISD::CALLabs;
+- 			break;
+- /*		{
+- 			ConstantSDNode *c = dyn_cast<ConstantSDNode>(Callee);
+- 			assert(c && "Not a constant");*/
+- 
+- 		case ISD::LOAD:
+- 			call_inst = JCAISD::CALLabs;
+- 			break;
+- 
+- 
+- 		default:
+- 			assert(0 && "Callee type not supported");
+- 	}
+- 
+- 	// Now build a list of arguments to pass to the CALL function
+- 	std::vector<SDValue> Ops;
+- 	Ops.push_back(Chain);
+- 	Ops.push_back(Callee);
+- 
+- 	// Also add all register arguments to the list (they are not actually
+- 	// used by the call instruction per se, but putting them here as an
+- 	// input makes the register allocator mark them as live into the call
+- 	// function so they are not killed early).
+- 	for(auto &Reg : RegsToPass)
+- 		Ops.push_back(DAG.getRegister(Reg.first, Reg.second.getValueType()));
+- 
+- 	// CALL also needs a register mask representing call-preserved registers
+- 	const uint32_t *Mask;
+- 	const TargetRegisterInfo *TRI = DAG.getSubtarget().getRegisterInfo();
+- 	Mask = TRI->getCallPreservedMask(DAG.getMachineFunction(), CallConv);
+- 
+- 	assert(Mask && "Missing call preserved mask for calling convention");
+- 	Ops.push_back(DAG.getRegisterMask(Mask));
+- 
+- 	if(InFlag.getNode())
+- 		Ops.push_back(InFlag);
+- 
+- 	// Build the CALL instruction
+- 	SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
+- 
+- 	Chain = DAG.getNode(call_inst, Loc, NodeTys, Ops);
+- 	InFlag = Chain.getValue(1);
+- 
+- 	// Terminate the call sequence chain
+- 	Chain = DAG.getCALLSEQ_END(Chain,
+- 			DAG.getIntPtrConstant(NumBytes, Loc, true),
+- 			DAG.getIntPtrConstant(0, Loc, true),
+- 			InFlag, Loc);
+- 
+- 	if(!Ins.empty())
+- 		InFlag = Chain.getValue(1);
+- 
+- 	// Handle result values
+- 	return LowerCallResult(Chain, InFlag, CallConv, isVarArg, Ins, Loc,
+- 			DAG, InVals);
+- }
+- 
+- SDValue JCATargetLowering::LowerCallResult(SDValue Chain, SDValue InGlue,
+- 		CallingConv::ID CallConv, bool isVarArg,
+- 		const SmallVectorImpl<ISD::InputArg> &Ins, SDLoc dl,
+- 		SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const
+- {
+- 	assert(!isVarArg && "VarArgs not supported");
+- 
+- 	// Ask the calling convention where our return arguments are
+- 	SmallVector<CCValAssign, 16> RVLocs;
+- 	CCState CCInfo(CallConv, isVarArg, DAG.getMachineFunction(),
+- 			RVLocs, *DAG.getContext());
+- 	CCInfo.AnalyzeCallResult(Ins, RetCC_JCA);
+- 
+- 	// Copy all result registers from wherever they are to the appropriate
+- 	// vreg
+- 	for(auto &Loc : RVLocs) {
+- 		Chain = DAG.getCopyFromReg(Chain, dl, Loc.getLocReg(), Loc.getValVT(),
+- 				InGlue).getValue(1);
+- 		InGlue = Chain.getValue(2);
+- 		InVals.push_back(Chain.getValue(0));
+- 	}
+- 
+- 	return Chain;
+- }
+- 
+--- 0 ----
+Binary files llvm-3.7.0.src/lib/Target/JCA/.JCAISelLowering.cpp.swp and llvm-3.7.0.src-orig/lib/Target/JCA/.JCAISelLowering.cpp.swp differ
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCAISelLowering.h llvm-3.7.0.src-orig/lib/Target/JCA/JCAISelLowering.h
+*** llvm-3.7.0.src/lib/Target/JCA/JCAISelLowering.h	2016-01-07 15:40:29.645359780 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCAISelLowering.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,64 ****
+- //===-- JCAISelLowering.h - JCA DAG Lowering Interface ------*- C++ -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file defines the interfaces that JCA uses to lower LLVM code into a
+- // selection DAG.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #ifndef LLVM_LIB_TARGET_SPARC_SPARCISELLOWERING_H
+- #define LLVM_LIB_TARGET_SPARC_SPARCISELLOWERING_H
+- 
+- #include "JCA.h"
+- #include "llvm/Target/TargetLowering.h"
+- 
+- namespace llvm {
+-   class JCASubtarget;
+- 
+-   namespace JCAISD {
+-     enum NodeType : unsigned {
+- 		FIRST_NUMBER = ISD::BUILTIN_OP_END,
+-       CALL,        // A call instruction.
+- 	  CALLabs,		// Absolute call
+-       RET_FLAG,    // Return with a flag operand.
+- 	  LOAD_SYM,		// Handle loading global addresses
+-     };
+-   }
+- 
+-   class JCATargetLowering : public TargetLowering {
+-     const JCASubtarget *Subtarget;
+-   public:
+-     JCATargetLowering(TargetMachine &TM, const JCASubtarget &STI);
+- 
+-     virtual const char *getTargetNodeName(unsigned Opcode) const;
+- 
+-     SDValue LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv,
+- 		bool isVarArg, const SmallVectorImpl<ISD::InputArg> &Ins,
+- 		SDLoc dl, SelectionDAG &DAG,
+- 		SmallVectorImpl<SDValue> &InVals) const override;
+- 
+-     SDValue LowerReturn(SDValue Chain, CallingConv::ID CallConv,
+- 		bool isVarArg, const SmallVectorImpl<ISD::OutputArg> &Outs,
+- 		const SmallVectorImpl<SDValue> &OutVals, SDLoc dl,
+- 		SelectionDAG &DAG) const override;
+- 
+- 	SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
+- 					SmallVectorImpl<SDValue> &InVals) const override;
+- 
+- 	SDValue LowerCallResult(SDValue Chain, SDValue InGlue,
+- 		CallingConv::ID CallConv, bool isVarArg,
+- 		const SmallVectorImpl<ISD::InputArg> &Ins, SDLoc dl,
+- 		SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const;
+- 
+- 	virtual SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const;
+- 	SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+-   };
+- } // end namespace llvm
+- 
+- #endif    // SPARC_ISELLOWERING_H
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCAMachineFunctionInfo.h llvm-3.7.0.src-orig/lib/Target/JCA/JCAMachineFunctionInfo.h
+*** llvm-3.7.0.src/lib/Target/JCA/JCAMachineFunctionInfo.h	2015-11-12 14:26:11.222413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCAMachineFunctionInfo.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,56 ****
+- //===- JCAMachineFunctionInfo.h - JCA Machine Function Info -*- C++ -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file declares  JCA specific per-machine-function information.
+- //
+- //===----------------------------------------------------------------------===//
+- #ifndef LLVM_LIB_TARGET_SPARC_SPARCMACHINEFUNCTIONINFO_H
+- #define LLVM_LIB_TARGET_SPARC_SPARCMACHINEFUNCTIONINFO_H
+- 
+- #include "llvm/CodeGen/MachineFunction.h"
+- 
+- namespace llvm {
+- 
+-   class JCAMachineFunctionInfo : public MachineFunctionInfo {
+-     virtual void anchor();
+-   private:
+-     unsigned GlobalBaseReg;
+- 
+-     /// VarArgsFrameOffset - Frame offset to start of varargs area.
+-     int VarArgsFrameOffset;
+- 
+-     /// SRetReturnReg - Holds the virtual register into which the sret
+-     /// argument is passed.
+-     unsigned SRetReturnReg;
+- 
+-     /// IsLeafProc - True if the function is a leaf procedure.
+-     bool IsLeafProc;
+-   public:
+-     JCAMachineFunctionInfo()
+-       : GlobalBaseReg(0), VarArgsFrameOffset(0), SRetReturnReg(0),
+-         IsLeafProc(false) {}
+-     explicit JCAMachineFunctionInfo(MachineFunction &MF)
+-       : GlobalBaseReg(0), VarArgsFrameOffset(0), SRetReturnReg(0),
+-         IsLeafProc(false) {}
+- 
+-     unsigned getGlobalBaseReg() const { return GlobalBaseReg; }
+-     void setGlobalBaseReg(unsigned Reg) { GlobalBaseReg = Reg; }
+- 
+-     int getVarArgsFrameOffset() const { return VarArgsFrameOffset; }
+-     void setVarArgsFrameOffset(int Offset) { VarArgsFrameOffset = Offset; }
+- 
+-     unsigned getSRetReturnReg() const { return SRetReturnReg; }
+-     void setSRetReturnReg(unsigned Reg) { SRetReturnReg = Reg; }
+- 
+-     void setLeafProc(bool rhs) { IsLeafProc = rhs; }
+-     bool isLeafProc() const { return IsLeafProc; }
+-   };
+- }
+- 
+- #endif
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCAMCInstLower.cpp llvm-3.7.0.src-orig/lib/Target/JCA/JCAMCInstLower.cpp
+*** llvm-3.7.0.src/lib/Target/JCA/JCAMCInstLower.cpp	2016-01-06 17:54:54.741239999 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCAMCInstLower.cpp	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,117 ****
+- //===-- JCAMCInstLower.cpp - Convert JCA MachineInstr to MCInst -------===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file contains code to lower JCA MachineInstrs to their corresponding
+- // MCInst records.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #include "JCA.h"
+- #include "llvm/ADT/SmallString.h"
+- #include "llvm/CodeGen/AsmPrinter.h"
+- #include "llvm/CodeGen/MachineFunction.h"
+- #include "llvm/CodeGen/MachineInstr.h"
+- #include "llvm/CodeGen/MachineOperand.h"
+- #include "llvm/IR/Mangler.h"
+- #include "llvm/MC/MCAsmInfo.h"
+- #include "llvm/MC/MCContext.h"
+- #include "llvm/MC/MCExpr.h"
+- #include "llvm/MC/MCInst.h"
+- 
+- using namespace llvm;
+- 
+- 
+- static MCOperand LowerSymbolOperand(const MachineInstr *MI,
+-                                     const MachineOperand &MO,
+-                                     AsmPrinter &AP) {
+-   unsigned Offset = 0;
+-   const MCSymbol *Symbol = nullptr;
+- 
+-   switch(MO.getType()) {
+-   default: llvm_unreachable("Unknown type in LowerSymbolOperand");
+-   case MachineOperand::MO_MachineBasicBlock:
+-     Symbol = MO.getMBB()->getSymbol();
+-     break;
+- 
+-   case MachineOperand::MO_GlobalAddress:
+-     Symbol = AP.getSymbol(MO.getGlobal());
+- 	Offset += MO.getOffset();
+-     break;
+- 
+-   case MachineOperand::MO_BlockAddress:
+-     Symbol = AP.GetBlockAddressSymbol(MO.getBlockAddress());
+- 	Offset += MO.getOffset();
+-     break;
+- 
+-   case MachineOperand::MO_ExternalSymbol:
+-     Symbol = AP.GetExternalSymbolSymbol(MO.getSymbolName());
+- 	Offset += MO.getOffset();
+-     break;
+- 
+-   case MachineOperand::MO_ConstantPoolIndex:
+-     Symbol = AP.GetCPISymbol(MO.getIndex());
+- 	Offset += MO.getOffset();
+-     break;
+-   }
+- 
+-   const MCSymbolRefExpr *MCSym = MCSymbolRefExpr::create(Symbol,
+-                                                          AP.OutContext);
+-   
+-   if(Offset == 0)
+-     return MCOperand::createExpr(MCSym);
+- 
+-   const MCConstantExpr *OffsetExpr = MCConstantExpr::create(Offset,
+- 		  AP.OutContext);
+-   const MCBinaryExpr *AddExpr = MCBinaryExpr::createAdd(MCSym, OffsetExpr,
+- 		  AP.OutContext);
+-   return MCOperand::createExpr(AddExpr);
+- }
+- 
+- static MCOperand LowerOperand(const MachineInstr *MI,
+-                               const MachineOperand &MO,
+-                               AsmPrinter &AP) {
+-   switch(MO.getType()) {
+-   default: llvm_unreachable("unknown operand type"); break;
+-   case MachineOperand::MO_Register:
+-     if (MO.isImplicit())
+-       break;
+-     return MCOperand::createReg(MO.getReg());
+- 
+-   case MachineOperand::MO_Immediate:
+-     return MCOperand::createImm(MO.getImm());
+- 
+-   case MachineOperand::MO_MachineBasicBlock:
+-   case MachineOperand::MO_GlobalAddress:
+-   case MachineOperand::MO_BlockAddress:
+-   case MachineOperand::MO_ExternalSymbol:
+-   case MachineOperand::MO_ConstantPoolIndex:
+-     return LowerSymbolOperand(MI, MO, AP);
+- 
+-   case MachineOperand::MO_RegisterMask:   break;
+- 
+-   }
+-   return MCOperand();
+- }
+- 
+- void llvm::LowerJCAMachineInstrToMCInst(const MachineInstr *MI,
+-                                           MCInst &OutMI,
+-                                           AsmPrinter &AP)
+- {
+- 
+-   OutMI.setOpcode(MI->getOpcode());
+- 
+-   for (unsigned i = 0, e = MI->getNumOperands(); i != e; ++i) {
+-     const MachineOperand &MO = MI->getOperand(i);
+-     MCOperand MCOp = LowerOperand(MI, MO, AP);
+- 
+-     if (MCOp.isValid())
+-       OutMI.addOperand(MCOp);
+-   }
+- }
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCAOperators.td llvm-3.7.0.src-orig/lib/Target/JCA/JCAOperators.td
+*** llvm-3.7.0.src/lib/Target/JCA/JCAOperators.td	2016-01-07 15:43:53.359451751 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCAOperators.td	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,20 ****
+- // Special node to handle return values
+- def JCARetFlag	: SDNode<"JCAISD::RET_FLAG", SDTNone,
+- 			[SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+- 
+- // Nodes to handle CALL instructions
+- def SDT_JCACallSeqStart	: SDCallSeqStart<[SDTCisVT<0, i32>]>;
+- def SDT_JCACallSeqEnd	: SDCallSeqEnd<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
+- def callseq_start	: SDNode<"ISD::CALLSEQ_START", SDT_JCACallSeqStart,
+- 			[SDNPHasChain, SDNPOutGlue]>;
+- def callseq_end		: SDNode<"ISD::CALLSEQ_END", SDT_JCACallSeqEnd,
+- 			[SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
+- def SDT_JCACall	: SDTypeProfile<0, -1, [SDTCisPtrTy<0>]>;
+- def JCACallFlag	: SDNode<"JCAISD::CALL", SDT_JCACall,
+- 			[SDNPHasChain, SDNPOptInGlue, SDNPOutGlue, SDNPVariadic]>;
+- def JCACallAbsFlag	: SDNode<"JCAISD::CALLabs", SDT_JCACall,
+- 			[SDNPHasChain, SDNPOptInGlue, SDNPOutGlue, SDNPVariadic]>;
+- 
+- // Handle global address loads
+- def load_sym	: SDNode<"JCAISD::LOAD_SYM", SDTIntUnaryOp>;
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCARegisterInfo.cpp llvm-3.7.0.src-orig/lib/Target/JCA/JCARegisterInfo.cpp
+*** llvm-3.7.0.src/lib/Target/JCA/JCARegisterInfo.cpp	2016-01-03 18:38:06.410207335 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCARegisterInfo.cpp	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,111 ****
+- //===-- JCARegisterInfo.cpp - SPARC Register Information ----------------===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file contains the JCA implementation of the TargetRegisterInfo class.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #include "JCARegisterInfo.h"
+- #include "JCA.h"
+- #include "JCAMachineFunctionInfo.h"
+- #include "JCASubtarget.h"
+- #include "llvm/ADT/BitVector.h"
+- #include "llvm/ADT/STLExtras.h"
+- #include "llvm/CodeGen/MachineFrameInfo.h"
+- #include "llvm/CodeGen/MachineFunction.h"
+- #include "llvm/CodeGen/MachineInstrBuilder.h"
+- #include "llvm/IR/Type.h"
+- #include "llvm/Support/CommandLine.h"
+- #include "llvm/Support/ErrorHandling.h"
+- #include "llvm/Target/TargetInstrInfo.h"
+- 
+- using namespace llvm;
+- 
+- #define GET_REGINFO_TARGET_DESC
+- #include "JCAGenRegisterInfo.inc"
+- 
+- JCARegisterInfo::JCARegisterInfo() : JCAGenRegisterInfo(JCA::LR) {}
+- 
+- const uint16_t *
+- JCARegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
+- 	static const uint16_t CalleeSavedRegs[] =
+- 		{ JCA::R8, JCA::R9, JCA::R10, JCA::R11, JCA::R12,
+- 			JCA::R13, JCA::R14, JCA::R15, JCA::LR, 0 };
+- 	return CalleeSavedRegs;
+- }
+- 
+- BitVector JCARegisterInfo::getReservedRegs(const MachineFunction &MF) const {
+-   BitVector Reserved(getNumRegs());
+-   Reserved.set(JCA::SP);
+-   Reserved.set(JCA::LR);
+-   Reserved.set(JCA::PC);
+-   Reserved.set(JCA::R1);
+-   return Reserved;
+- }
+- 
+- void
+- JCARegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
+-                                        int SPAdj, unsigned FIOperandNum,
+-                                        RegScavenger *RS) const {
+- 	/* FrameIndices should only be emitted as part of GETfi instructions,
+- 		which assign an absolute address to a register depending
+- 		on the actual frame index requested (integers starting from
+- 		zero)
+- 	*/
+- 
+- 	MachineInstr &MI = *II;
+- 	MachineOperand &FIOp = MI.getOperand(FIOperandNum);
+- 	const MachineFunction &MF = *MI.getParent()->getParent();
+- 	const MachineFrameInfo *MFI = MF.getFrameInfo();
+- 	unsigned FrameIndex = FIOp.getIndex();
+- 
+- 	switch(MI.getOpcode()) {
+- 		case JCA::GETfi:
+- 		case JCA::STOREst:
+- 		case JCA::LOADst:
+- 		case JCA::STOREstw:
+- 		case JCA::LOADstw:
+- 		case JCA::STOREstb:
+- 		case JCA::LOADstb:
+- 		{
+- 			// GETfi is a pseudo op to be handled later
+- 			// for now, just convert the frameindex to a SP offset
+- 			int Offset = MFI->getObjectOffset(FrameIndex) + 
+- 				MFI->getStackSize();
+- 			FIOp.ChangeToImmediate(Offset);
+- 			break;
+- 		}
+- 
+- 		default:
+- 			assert(0 && "eliminateFrameIndex");
+- 			return;
+- 	}
+- }
+- 
+- unsigned JCARegisterInfo::getFrameRegister(const MachineFunction &MF) const {
+-   return JCA::SP;
+- }
+- 
+- const uint32_t *JCARegisterInfo::getCallPreservedMask(const MachineFunction &MF,
+- 	CallingConv::ID) const {
+- 	return CC_Save_RegMask;
+- }
+- 
+- bool JCARegisterInfo::requiresRegisterScavenging(const MachineFunction &MF) const {
+- 	return true;
+- }
+- 
+- bool JCARegisterInfo::trackLivenessAfterRegAlloc(const MachineFunction &MF) const {
+- 	return true;
+- }
+- 
+- bool JCARegisterInfo::useFPForScavengingIndex(const MachineFunction &MF) const {
+- 	return false;
+- }
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCARegisterInfo.h llvm-3.7.0.src-orig/lib/Target/JCA/JCARegisterInfo.h
+*** llvm-3.7.0.src/lib/Target/JCA/JCARegisterInfo.h	2015-11-14 13:23:04.038372431 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCARegisterInfo.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,47 ****
+- //===-- JCARegisterInfo.h - JCA Register Information Impl ---*- C++ -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file contains the JCA implementation of the TargetRegisterInfo class.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #ifndef LLVM_LIB_TARGET_SPARC_SPARCREGISTERINFO_H
+- #define LLVM_LIB_TARGET_SPARC_SPARCREGISTERINFO_H
+- 
+- #include "llvm/Target/TargetRegisterInfo.h"
+- 
+- #define GET_REGINFO_HEADER
+- #include "JCAGenRegisterInfo.inc"
+- 
+- namespace llvm {
+- struct JCARegisterInfo : public JCAGenRegisterInfo {
+-   JCARegisterInfo();
+- 
+-   /// Code Generation virtual methods...
+-   const uint16_t *getCalleeSavedRegs(const MachineFunction *MF) const override;
+-   const uint32_t *getCallPreservedMask(const MachineFunction &MF,
+-                                        CallingConv::ID CC) const override;
+- 
+-   BitVector getReservedRegs(const MachineFunction &MF) const override;
+- 
+-   void eliminateFrameIndex(MachineBasicBlock::iterator II,
+-                            int SPAdj, unsigned FIOperandNum,
+-                            RegScavenger *RS = nullptr) const override;
+- 
+-   bool requiresRegisterScavenging(const MachineFunction &MF) const override;
+-   bool trackLivenessAfterRegAlloc(const MachineFunction &MF) const override;
+-   bool useFPForScavengingIndex(const MachineFunction &MF) const override;
+- 
+-   // Debug information queries.
+-   unsigned getFrameRegister(const MachineFunction &MF) const override;
+- };
+- 
+- } // end namespace llvm
+- 
+- #endif
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCARegisterInfo.td llvm-3.7.0.src-orig/lib/Target/JCA/JCARegisterInfo.td
+*** llvm-3.7.0.src/lib/Target/JCA/JCARegisterInfo.td	2015-11-14 17:51:13.538372431 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCARegisterInfo.td	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,46 ****
+- //===-- JCARegisterInfo.td - JCA Register defs ---------*- tablegen -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- //===----------------------------------------------------------------------===//
+- //  Declarations that describe the JCA register file
+- //===----------------------------------------------------------------------===//
+- 
+- class JCAReg<bits<16> Enc, string n> : Register<n> {
+-   let HWEncoding = Enc;
+-   let Namespace = "JCA";
+- }
+- 
+- // Registers are identified with 5-bit ID numbers.
+- // Ri - 32-bit integer registers
+- class Ri<bits<16> Enc, string n> : JCAReg<Enc, n>;
+- 
+- def PC	: Ri< 0, "PC" >;
+- def R1	: Ri< 1, "R1" >;
+- def R2	: Ri< 1, "R2" >;
+- def R3	: Ri< 1, "R3" >;
+- def R4	: Ri< 1, "R4" >;
+- def R5	: Ri< 1, "R5" >;
+- def LR	: Ri< 1, "LR" >;
+- def SP	: Ri< 1, "SP" >;
+- def R8	: Ri< 1, "R8" >;
+- def R9	: Ri< 1, "R9" >;
+- def R10	: Ri< 1, "R10" >;
+- def R11	: Ri< 1, "R11" >;
+- def R12	: Ri< 1, "R12" >;
+- def R13	: Ri< 1, "R13" >;
+- def R14	: Ri< 1, "R14" >;
+- def R15	: Ri< 1, "R15" >;
+- 
+- // exclude R1 from here so we can use it as a scratch reg
+- def IntRegs : RegisterClass<"JCA", [i32], 32,
+- 	(add PC, R2, R3, R4, R5, LR, SP, R8, R9, R10, R11, R12, R13,
+- 		R14, R15)>;
+- 
+- def IntRegR1Only : RegisterClass<"JCA", [i32], 32, (add R1)>;
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCASubtarget.cpp llvm-3.7.0.src-orig/lib/Target/JCA/JCASubtarget.cpp
+*** llvm-3.7.0.src/lib/Target/JCA/JCASubtarget.cpp	2015-11-12 14:13:10.722413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCASubtarget.cpp	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,44 ****
+- //===-- JCASubtarget.cpp - SPARC Subtarget Information ------------------===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file implements the SPARC specific subclass of TargetSubtargetInfo.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #include "JCASubtarget.h"
+- #include "JCA.h"
+- #include "llvm/Support/MathExtras.h"
+- #include "llvm/Support/TargetRegistry.h"
+- 
+- using namespace llvm;
+- 
+- #define DEBUG_TYPE "sparc-subtarget"
+- 
+- #define GET_SUBTARGETINFO_TARGET_DESC
+- #define GET_SUBTARGETINFO_CTOR
+- #include "JCAGenSubtargetInfo.inc"
+- 
+- void JCASubtarget::anchor() { }
+- 
+- JCASubtarget &JCASubtarget::initializeSubtargetDependencies(StringRef CPU,
+-                                                                 StringRef FS) {
+-   return *this;
+- }
+- 
+- JCASubtarget::JCASubtarget(const Triple &TT, const std::string &CPU,
+-                                const std::string &FS, TargetMachine &TM
+-                                )
+-     : JCAGenSubtargetInfo(TT, CPU, FS), 
+-       InstrInfo(initializeSubtargetDependencies(CPU, FS)), TLInfo(TM, *this),
+-       FrameLowering(*this) {}
+- 
+- int JCASubtarget::getAdjustedFrameSize(int frameSize) const {
+- 
+-   return frameSize;
+- }
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCASubtarget.h llvm-3.7.0.src-orig/lib/Target/JCA/JCASubtarget.h
+*** llvm-3.7.0.src/lib/Target/JCA/JCASubtarget.h	2015-11-12 14:26:11.222413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCASubtarget.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,75 ****
+- //===-- JCASubtarget.h - Define Subtarget for the SPARC -------*- C++ -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file declares the SPARC specific subclass of TargetSubtargetInfo.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #ifndef LLVM_LIB_TARGET_SPARC_SPARCSUBTARGET_H
+- #define LLVM_LIB_TARGET_SPARC_SPARCSUBTARGET_H
+- 
+- #include "JCAFrameLowering.h"
+- #include "JCAInstrInfo.h"
+- #include "JCAISelLowering.h"
+- #include "llvm/IR/DataLayout.h"
+- #include "llvm/Target/TargetFrameLowering.h"
+- #include "llvm/Target/TargetSelectionDAGInfo.h"
+- #include "llvm/Target/TargetSubtargetInfo.h"
+- #include <string>
+- 
+- #define GET_SUBTARGETINFO_HEADER
+- #include "JCAGenSubtargetInfo.inc"
+- 
+- namespace llvm {
+- class StringRef;
+- 
+- class JCASubtarget : public JCAGenSubtargetInfo {
+-   virtual void anchor();
+-   JCAInstrInfo InstrInfo;
+-   JCATargetLowering TLInfo;
+-   TargetSelectionDAGInfo TSInfo;
+-   JCAFrameLowering FrameLowering;
+- 
+- public:
+-   JCASubtarget(const Triple &TT, const std::string &CPU,
+-                  const std::string &FS, TargetMachine &TM);
+- 
+-   const JCAInstrInfo *getInstrInfo() const override { return &InstrInfo; }
+-   const TargetFrameLowering *getFrameLowering() const override {
+-     return &FrameLowering;
+-   }
+-   const JCARegisterInfo *getRegisterInfo() const override {
+-     return &InstrInfo.getRegisterInfo();
+-   }
+-   const JCATargetLowering *getTargetLowering() const override {
+-     return &TLInfo;
+-   }
+-   const TargetSelectionDAGInfo *getSelectionDAGInfo() const override {
+-     return &TSInfo;
+-   }
+- 
+-   /// ParseSubtargetFeatures - Parses features string setting specified
+-   /// subtarget options.  Definition of function is auto generated by tblgen.
+-   void ParseSubtargetFeatures(StringRef CPU, StringRef FS);
+-   JCASubtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS);
+- 
+-   int64_t getStackPointerBias() const {
+-     return 0;
+-   }
+- 
+-   /// Given a actual stack size as determined by FrameInfo, this function
+-   /// returns adjusted framesize which includes space for register window
+-   /// spills and arguments.
+-   int getAdjustedFrameSize(int stackSize) const;
+- 
+- };
+- 
+- } // end namespace llvm
+- 
+- #endif
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCATargetMachine.cpp llvm-3.7.0.src-orig/lib/Target/JCA/JCATargetMachine.cpp
+*** llvm-3.7.0.src/lib/Target/JCA/JCATargetMachine.cpp	2015-11-12 18:47:57.314413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCATargetMachine.cpp	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,79 ****
+- //===-- JCATargetMachine.cpp - Define TargetMachine for JCA -----------===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #include "JCATargetMachine.h"
+- #include "JCA.h"
+- #include "llvm/CodeGen/Passes.h"
+- #include "llvm/IR/LegacyPassManager.h"
+- #include "llvm/Support/TargetRegistry.h"
+- #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
+- using namespace llvm;
+- 
+- extern "C" void LLVMInitializeJCATarget() {
+-   // Register the target.
+-   RegisterTargetMachine<JCATargetMachine> X(TheJCATarget);
+- }
+- 
+- static std::string computeDataLayout(const Triple &T) {
+-   // JCA is little endian.  Hard code data types
+- 
+-   return "e-m:e-p:32:32-i8:8:32-i16:16:32-i64:64-n32-S32";
+- }
+- 
+- /// JCATargetMachine ctor - Create an ILP32 architecture model
+- ///
+- JCATargetMachine::JCATargetMachine(const Target &T, const Triple &TT,
+-                                        StringRef CPU, StringRef FS,
+-                                        const TargetOptions &Options,
+-                                        Reloc::Model RM, CodeModel::Model CM,
+-                                        CodeGenOpt::Level OL)
+-     : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
+-                         RM, CM, OL),
+- 	Subtarget(TT, CPU, FS, *this),
+-       TLOF(make_unique<TargetLoweringObjectFileELF>())
+-       {
+-   initAsmInfo();
+- }
+- 
+- JCATargetMachine::~JCATargetMachine() {}
+- 
+- namespace {
+- /// JCA Code Generator Pass Configuration Options.
+- class JCAPassConfig : public TargetPassConfig {
+- public:
+-   JCAPassConfig(JCATargetMachine *TM, PassManagerBase &PM)
+-     : TargetPassConfig(TM, PM) {}
+- 
+-   JCATargetMachine &getJCATargetMachine() const {
+-     return getTM<JCATargetMachine>();
+-   }
+- 
+-   // add several code generation passes
+-   virtual bool addPreISel() override;
+-   virtual bool addInstSelector() override;
+-   virtual void addPreEmitPass() override;
+- 
+- };
+- } // namespace
+- 
+- bool JCAPassConfig::addPreISel() { return false; }
+- bool JCAPassConfig::addInstSelector() {
+- 	addPass(createJCAISelDag(getJCATargetMachine()));
+- 	return false;
+- }
+- void JCAPassConfig::addPreEmitPass() {}
+- 
+- TargetPassConfig *JCATargetMachine::createPassConfig(PassManagerBase &PM) {
+-   return new JCAPassConfig(this, PM);
+- }
+- 
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCATargetMachine.h llvm-3.7.0.src-orig/lib/Target/JCA/JCATargetMachine.h
+*** llvm-3.7.0.src/lib/Target/JCA/JCATargetMachine.h	2015-11-12 14:27:54.738413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCATargetMachine.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,46 ****
+- //===-- JCATargetMachine.h - Define TargetMachine for JCA ---*- C++ -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file declares the JCA specific subclass of TargetMachine.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #ifndef LLVM_LIB_TARGET_SPARC_SPARCTARGETMACHINE_H
+- #define LLVM_LIB_TARGET_SPARC_SPARCTARGETMACHINE_H
+- 
+- #include "JCAInstrInfo.h"
+- #include "JCASubtarget.h"
+- #include "llvm/Target/TargetMachine.h"
+- 
+- namespace llvm {
+- 
+- class JCATargetMachine : public LLVMTargetMachine {
+-   JCASubtarget Subtarget;
+-   std::unique_ptr<TargetLoweringObjectFile> TLOF;
+- public:
+-   JCATargetMachine(const Target &T, const Triple &TT, StringRef CPU,
+-                      StringRef FS, const TargetOptions &Options,
+-                      Reloc::Model RM, CodeModel::Model CM, CodeGenOpt::Level OL
+-                      );
+-   ~JCATargetMachine() override;
+- 
+-   const JCASubtarget *getSubtargetImpl(const Function &) const override {
+-     return &Subtarget;
+-   }
+- 
+-   // Pass Pipeline Configuration
+-   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
+-   TargetLoweringObjectFile *getObjFileLowering() const override {
+-     return TLOF.get();
+-   }
+- };
+- 
+- } // end namespace llvm
+- 
+- #endif
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCATargetObjectFile.h llvm-3.7.0.src-orig/lib/Target/JCA/JCATargetObjectFile.h
+*** llvm-3.7.0.src/lib/Target/JCA/JCATargetObjectFile.h	2015-11-12 14:26:11.222413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCATargetObjectFile.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,31 ****
+- //===-- JCATargetObjectFile.h - JCA Object Info -------------*- C++ -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #ifndef LLVM_LIB_TARGET_SPARC_SPARCTARGETOBJECTFILE_H
+- #define LLVM_LIB_TARGET_SPARC_SPARCTARGETOBJECTFILE_H
+- 
+- #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
+- 
+- namespace llvm {
+- 
+- class MCContext;
+- class TargetMachine;
+- 
+- class JCAELFTargetObjectFile : public TargetLoweringObjectFileELF {
+- public:
+-   JCAELFTargetObjectFile() :
+-     TargetLoweringObjectFileELF()
+-   {}
+- 
+- 	void Initialize(MCContext &Ctx, const TargetMachine &TM) override;
+- };
+- 
+- } // end namespace llvm
+- 
+- #endif
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCATargetStreamer.h llvm-3.7.0.src-orig/lib/Target/JCA/JCATargetStreamer.h
+*** llvm-3.7.0.src/lib/Target/JCA/JCATargetStreamer.h	2015-11-12 14:26:11.222413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCATargetStreamer.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,49 ****
+- //===-- JCATargetStreamer.h - JCA Target Streamer ----------*- C++ -*--===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #ifndef LLVM_LIB_TARGET_SPARC_SPARCTARGETSTREAMER_H
+- #define LLVM_LIB_TARGET_SPARC_SPARCTARGETSTREAMER_H
+- 
+- #include "llvm/MC/MCELFStreamer.h"
+- #include "llvm/MC/MCStreamer.h"
+- 
+- namespace llvm {
+- class JCATargetStreamer : public MCTargetStreamer {
+-   virtual void anchor();
+- 
+- public:
+-   JCATargetStreamer(MCStreamer &S);
+-   /// Emit ".register <reg>, #ignore".
+-   virtual void emitJCARegisterIgnore(unsigned reg) = 0;
+-   /// Emit ".register <reg>, #scratch".
+-   virtual void emitJCARegisterScratch(unsigned reg) = 0;
+- };
+- 
+- // This part is for ascii assembly output
+- class JCATargetAsmStreamer : public JCATargetStreamer {
+-   formatted_raw_ostream &OS;
+- 
+- public:
+-   JCATargetAsmStreamer(MCStreamer &S, formatted_raw_ostream &OS);
+-   void emitJCARegisterIgnore(unsigned reg) override;
+-   void emitJCARegisterScratch(unsigned reg) override;
+- 
+- };
+- 
+- // This part is for ELF object output
+- class JCATargetELFStreamer : public JCATargetStreamer {
+- public:
+-   JCATargetELFStreamer(MCStreamer &S);
+-   MCELFStreamer &getStreamer();
+-   void emitJCARegisterIgnore(unsigned reg) override {}
+-   void emitJCARegisterScratch(unsigned reg) override {}
+- };
+- } // end namespace llvm
+- 
+- #endif
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/JCA.td llvm-3.7.0.src-orig/lib/Target/JCA/JCA.td
+*** llvm-3.7.0.src/lib/Target/JCA/JCA.td	2015-11-14 18:02:31.114372431 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/JCA.td	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,52 ****
+- //===-- JCA.td - Describe the JCA Target Machine -------*- tablegen -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- //===----------------------------------------------------------------------===//
+- // Target-independent interfaces which we are implementing
+- //===----------------------------------------------------------------------===//
+- 
+- include "llvm/Target/Target.td"
+- 
+- //===----------------------------------------------------------------------===//
+- // Register File, Calling Conv, Instruction Descriptions
+- //===----------------------------------------------------------------------===//
+- 
+- include "JCARegisterInfo.td"
+- include "JCACallingConv.td"
+- include "JCAInstrInfo.td"
+- 
+- def JCAInstrInfo : InstrInfo;
+- 
+- //===----------------------------------------------------------------------===//
+- // JCA processors supported.
+- //===----------------------------------------------------------------------===//
+- 
+- class Proc<string Name, list<SubtargetFeature> Features>
+-  : Processor<Name, NoItineraries, Features>;
+- 
+- def : Proc<"generic",         []>;
+- 
+- //===----------------------------------------------------------------------===//
+- // Declare the target which we are implementing
+- //===----------------------------------------------------------------------===//
+- 
+- def JCAAsmWriter : AsmWriter {
+-   string AsmWriterClassName  = "InstPrinter";
+-   int PassSubtarget = 1;
+-   int Variant = 0;
+- }
+- 
+- def JCA : Target {
+-   // Pull in Instruction Info:
+-   let InstructionSet = JCAInstrInfo;
+-   let AssemblyWriters = [JCAAsmWriter];
+- }
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/LLVMBuild.txt llvm-3.7.0.src-orig/lib/Target/JCA/LLVMBuild.txt
+*** llvm-3.7.0.src/lib/Target/JCA/LLVMBuild.txt	2015-11-18 18:11:07.931826711 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/LLVMBuild.txt	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,39 ****
+- ;===- ./lib/Target/JCA/LLVMBuild.txt --------------------------*- Conf -*--===;
+- ;
+- ;                     The LLVM Compiler Infrastructure
+- ;
+- ; This file is distributed under the University of Illinois Open Source
+- ; License. See LICENSE.TXT for details.
+- ;
+- ;===------------------------------------------------------------------------===;
+- ;
+- ; This is an LLVMBuild description file for the components in this subdirectory.
+- ;
+- ; For more information on the LLVMBuild system, please see:
+- ;
+- ;   http://llvm.org/docs/LLVMBuild.html
+- ;
+- ;===------------------------------------------------------------------------===;
+- 
+- # Following comments extracted from http://llvm.org/docs/LLVMBuild.html
+- 
+- [common]
+- subdirectories = InstPrinter MCTargetDesc TargetInfo
+- 
+- [component_0]
+- type = TargetGroup
+- name = JCA
+- parent = Target
+- has_asmparser = 0
+- has_asmprinter = 1
+- has_disassembler = 0
+- has_jit = 0
+- 
+- [component_1]
+- type = Library
+- name = JCACodeGen
+- parent = JCA
+- required_libraries = Analysis AsmPrinter CodeGen Core MC SelectionDAG Support Target TransformUtils JCAAsmPrinter JCADesc JCAInfo
+- add_to_library_groups = JCA
+- 
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/Makefile llvm-3.7.0.src-orig/lib/Target/JCA/Makefile
+*** llvm-3.7.0.src/lib/Target/JCA/Makefile	2015-11-12 14:02:18.414413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/Makefile	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,22 ****
+- ##===- lib/Target/JCA/Makefile ---------------------------*- Makefile -*-===##
+- #
+- #                     The LLVM Compiler Infrastructure
+- #
+- # This file is distributed under the University of Illinois Open Source
+- # License. See LICENSE.TXT for details.
+- #
+- ##===----------------------------------------------------------------------===##
+- 
+- LEVEL = ../../..
+- LIBRARYNAME = LLVMJCACodeGen
+- TARGET = JCA
+- 
+- # Make sure that tblgen is run, first thing.
+- BUILT_SOURCES = JCAGenRegisterInfo.inc JCAGenInstrInfo.inc \
+- 		JCAGenAsmWriter.inc JCAGenAsmMatcher.inc \
+- 		JCAGenDAGISel.inc JCAGenDisassemblerTables.inc \
+- 		JCAGenSubtargetInfo.inc JCAGenCallingConv.inc \
+- 		JCAGenMCCodeEmitter.inc
+- 
+- include $(LEVEL)/Makefile.common
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/CMakeLists.txt llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/CMakeLists.txt
+*** llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/CMakeLists.txt	2015-11-12 18:24:59.038413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/CMakeLists.txt	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,5 ****
+- add_llvm_library(LLVMJCADesc
+- 	JCAMCTargetDesc.cpp
+- 	JCAMCAsmInfo.cpp
+- )
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/JCAFixupKinds.h llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/JCAFixupKinds.h
+*** llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/JCAFixupKinds.h	2015-11-12 14:31:38.046413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/JCAFixupKinds.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,97 ****
+- //===-- JCAFixupKinds.h - JCA Specific Fixup Entries --------*- C++ -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #ifndef LLVM_LIB_TARGET_SPARC_MCTARGETDESC_SPARCFIXUPKINDS_H
+- #define LLVM_LIB_TARGET_SPARC_MCTARGETDESC_SPARCFIXUPKINDS_H
+- 
+- #include "llvm/MC/MCFixup.h"
+- 
+- namespace llvm {
+-   namespace JCA {
+-     enum Fixups {
+-       // fixup_sparc_call30 - 30-bit PC relative relocation for call
+-       fixup_sparc_call30 = FirstTargetFixupKind,
+- 
+-       /// fixup_sparc_br22 - 22-bit PC relative relocation for
+-       /// branches
+-       fixup_sparc_br22,
+- 
+-       /// fixup_sparc_br19 - 19-bit PC relative relocation for
+-       /// branches on icc/xcc
+-       fixup_sparc_br19,
+- 
+-       /// fixup_sparc_bpr  - 16-bit fixup for bpr
+-       fixup_sparc_br16_2,
+-       fixup_sparc_br16_14,
+- 
+-       /// fixup_sparc_hi22  - 22-bit fixup corresponding to %hi(foo)
+-       /// for sethi
+-       fixup_sparc_hi22,
+- 
+-       /// fixup_sparc_lo10  - 10-bit fixup corresponding to %lo(foo)
+-       fixup_sparc_lo10,
+- 
+-       /// fixup_sparc_h44  - 22-bit fixup corresponding to %h44(foo)
+-       fixup_sparc_h44,
+- 
+-       /// fixup_sparc_m44  - 10-bit fixup corresponding to %m44(foo)
+-       fixup_sparc_m44,
+- 
+-       /// fixup_sparc_l44  - 12-bit fixup corresponding to %l44(foo)
+-       fixup_sparc_l44,
+- 
+-       /// fixup_sparc_hh  -  22-bit fixup corresponding to %hh(foo)
+-       fixup_sparc_hh,
+- 
+-       /// fixup_sparc_hm  -  10-bit fixup corresponding to %hm(foo)
+-       fixup_sparc_hm,
+- 
+-       /// fixup_sparc_pc22 - 22-bit fixup corresponding to %pc22(foo)
+-       fixup_sparc_pc22,
+- 
+-       /// fixup_sparc_pc10 - 10-bit fixup corresponding to %pc10(foo)
+-       fixup_sparc_pc10,
+- 
+-       /// fixup_sparc_got22 - 22-bit fixup corresponding to %got22(foo)
+-       fixup_sparc_got22,
+- 
+-       /// fixup_sparc_got10 - 10-bit fixup corresponding to %got10(foo)
+-       fixup_sparc_got10,
+- 
+-       /// fixup_sparc_wplt30
+-       fixup_sparc_wplt30,
+- 
+-       /// fixups for Thread Local Storage
+-       fixup_sparc_tls_gd_hi22,
+-       fixup_sparc_tls_gd_lo10,
+-       fixup_sparc_tls_gd_add,
+-       fixup_sparc_tls_gd_call,
+-       fixup_sparc_tls_ldm_hi22,
+-       fixup_sparc_tls_ldm_lo10,
+-       fixup_sparc_tls_ldm_add,
+-       fixup_sparc_tls_ldm_call,
+-       fixup_sparc_tls_ldo_hix22,
+-       fixup_sparc_tls_ldo_lox10,
+-       fixup_sparc_tls_ldo_add,
+-       fixup_sparc_tls_ie_hi22,
+-       fixup_sparc_tls_ie_lo10,
+-       fixup_sparc_tls_ie_ld,
+-       fixup_sparc_tls_ie_ldx,
+-       fixup_sparc_tls_ie_add,
+-       fixup_sparc_tls_le_hix22,
+-       fixup_sparc_tls_le_lox10,
+- 
+-       // Marker
+-       LastTargetFixupKind,
+-       NumTargetFixupKinds = LastTargetFixupKind - FirstTargetFixupKind
+-     };
+-   }
+- }
+- 
+- #endif
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/JCAMCAsmInfo.cpp llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/JCAMCAsmInfo.cpp
+*** llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/JCAMCAsmInfo.cpp	2015-11-12 18:15:25.966413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/JCAMCAsmInfo.cpp	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,25 ****
+- #include "JCAMCAsmInfo.h"
+- #include "llvm/ADT/StringRef.h"
+- using namespace llvm;
+- 
+- void JCAMCAsmInfo::anchor() {}
+- 
+- JCAMCAsmInfo::JCAMCAsmInfo(const Triple &TT) {
+- 	SupportsDebugInformation = false;
+- 	Data8bitsDirective = "\tdb\t";
+- 	Data16bitsDirective = "\tdw\t";
+- 	Data32bitsDirective = "\tdd\t";
+- 	Data64bitsDirective = 0;
+- 
+- 	ZeroDirective = 0;
+- 	AsciiDirective = "\tdb\t";
+- 	AscizDirective = 0;
+- 
+- 
+- 	CommentString = "//";
+- 
+- 	HiddenVisibilityAttr = MCSA_Invalid;
+- 	HiddenDeclarationVisibilityAttr = MCSA_Invalid;
+- 	ProtectedVisibilityAttr = MCSA_Invalid;
+- }
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/JCAMCAsmInfo.h llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/JCAMCAsmInfo.h
+*** llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/JCAMCAsmInfo.h	2015-11-12 17:57:36.414413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/JCAMCAsmInfo.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,30 ****
+- //===-- JCAMCAsmInfo.h - JCA asm properties ----------------*- C++ -*--===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file contains the declaration of the JCAMCAsmInfo class.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #ifndef LLVM_LIB_TARGET_SPARC_MCTARGETDESC_SPARCMCASMINFO_H
+- #define LLVM_LIB_TARGET_SPARC_MCTARGETDESC_SPARCMCASMINFO_H
+- 
+- #include "llvm/MC/MCAsmInfoELF.h"
+- 
+- namespace llvm {
+- class Triple;
+- 
+- class JCAMCAsmInfo : public MCAsmInfoELF {
+-   void anchor() override;
+- public:
+-   explicit JCAMCAsmInfo(const Triple &TheTriple);
+- };
+- 
+- } // namespace llvm
+- 
+- #endif
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/JCAMCTargetDesc.cpp llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/JCAMCTargetDesc.cpp
+*** llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/JCAMCTargetDesc.cpp	2015-11-12 18:30:55.182413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/JCAMCTargetDesc.cpp	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,85 ****
+- //===-- JCAMCTargetDesc.cpp - JCA Target Descriptions -----------------===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file provides JCA specific target descriptions.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #include "JCAMCTargetDesc.h"
+- #include "InstPrinter/JCAInstPrinter.h"
+- #include "JCAMCAsmInfo.h"
+- #include "JCATargetStreamer.h"
+- #include "llvm/MC/MCCodeGenInfo.h"
+- #include "llvm/MC/MCInstrInfo.h"
+- #include "llvm/MC/MCRegisterInfo.h"
+- #include "llvm/MC/MCSubtargetInfo.h"
+- #include "llvm/Support/ErrorHandling.h"
+- #include "llvm/Support/TargetRegistry.h"
+- 
+- using namespace llvm;
+- 
+- #define GET_INSTRINFO_MC_DESC
+- #include "JCAGenInstrInfo.inc"
+- 
+- #define GET_SUBTARGETINFO_MC_DESC
+- #include "JCAGenSubtargetInfo.inc"
+- 
+- #define GET_REGINFO_MC_DESC
+- #include "JCAGenRegisterInfo.inc"
+- 
+- static MCInstrInfo *createJCAMCInstrInfo() {
+- 	MCInstrInfo *X = new MCInstrInfo();
+- 	InitJCAMCInstrInfo(X);
+- 	return X;
+- }
+- 
+- static MCRegisterInfo *createJCAMCRegisterInfo(const Triple &TT) {
+- 	MCRegisterInfo *X = new MCRegisterInfo();
+- 	InitJCAMCRegisterInfo(X, JCA::R15);
+- 	return X;
+- }
+- 
+- static MCSubtargetInfo *createJCAMCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
+- 	return createJCAMCSubtargetInfoImpl(TT, CPU, FS);
+- }
+- 
+- static MCCodeGenInfo *createJCAMCCodeGenInfo(const Triple &TT, Reloc::Model RM, CodeModel::Model CM, CodeGenOpt::Level OL) {
+- 	MCCodeGenInfo *X = new MCCodeGenInfo();
+- 
+- 	if(RM == Reloc::Default)
+- 		RM = Reloc::Static;
+- 	if(CM == CodeModel::Default)
+- 		CM = CodeModel::Large;
+- 
+- 	X->initMCCodeGenInfo(RM, CM, OL);
+- 	return X;
+- }
+- 
+- static MCInstPrinter *createJCAMCInstPrinter(const Triple &TT, unsigned SyntaxVariant, const MCAsmInfo &MAI, const MCInstrInfo &MII, const MCRegisterInfo &MRI) {
+- 	return new JCAInstPrinter(MAI, MII, MRI);
+- }
+- 
+- static MCAsmInfo *createJCAMCAsmInfo(const MCRegisterInfo &MRI,
+- 				const Triple &TT) {
+- 	return new JCAMCAsmInfo(TT);
+- }
+- 
+- extern "C" void LLVMInitializeJCATargetMC()
+- {
+- 	RegisterMCAsmInfoFn X(TheJCATarget, createJCAMCAsmInfo);
+- 
+- 	TargetRegistry::RegisterMCCodeGenInfo(TheJCATarget, createJCAMCCodeGenInfo);
+- 	TargetRegistry::RegisterMCInstrInfo(TheJCATarget, createJCAMCInstrInfo);
+- 	TargetRegistry::RegisterMCRegInfo(TheJCATarget, createJCAMCRegisterInfo);
+- 	TargetRegistry::RegisterMCSubtargetInfo(TheJCATarget, createJCAMCSubtargetInfo);
+- 	TargetRegistry::RegisterMCInstPrinter(TheJCATarget, createJCAMCInstPrinter);
+- //	TargetRegistry::RegisterMCAsmBackend(TheJCATarget, createJCAAsmBackend);
+- }
+- 
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/JCAMCTargetDesc.h llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/JCAMCTargetDesc.h
+*** llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/JCAMCTargetDesc.h	2015-11-12 14:30:02.670413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/JCAMCTargetDesc.h	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,50 ****
+- //===-- JCAMCTargetDesc.h - JCA Target Descriptions ---------*- C++ -*-===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- //
+- // This file provides JCA specific target descriptions.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #ifndef LLVM_LIB_TARGET_SPARC_MCTARGETDESC_SPARCMCTARGETDESC_H
+- #define LLVM_LIB_TARGET_SPARC_MCTARGETDESC_SPARCMCTARGETDESC_H
+- 
+- #include "llvm/Support/DataTypes.h"
+- 
+- namespace llvm {
+- class MCAsmBackend;
+- class MCCodeEmitter;
+- class MCContext;
+- class MCInstrInfo;
+- class MCObjectWriter;
+- class MCRegisterInfo;
+- class MCSubtargetInfo;
+- class Target;
+- class Triple;
+- class StringRef;
+- class raw_pwrite_stream;
+- class raw_ostream;
+- 
+- extern Target TheJCATarget;
+- } // End llvm namespace
+- 
+- // Defines symbolic names for JCA registers.  This defines a mapping from
+- // register name to register number.
+- //
+- #define GET_REGINFO_ENUM
+- #include "JCAGenRegisterInfo.inc"
+- 
+- // Defines symbolic names for the JCA instructions.
+- //
+- #define GET_INSTRINFO_ENUM
+- #include "JCAGenInstrInfo.inc"
+- 
+- #define GET_SUBTARGETINFO_ENUM
+- #include "JCAGenSubtargetInfo.inc"
+- 
+- #endif
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/LLVMBuild.txt llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/LLVMBuild.txt
+*** llvm-3.7.0.src/lib/Target/JCA/MCTargetDesc/LLVMBuild.txt	2015-11-12 18:25:45.958413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/MCTargetDesc/LLVMBuild.txt	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,7 ****
+- [component_0]
+- type = Library
+- name = JCADesc
+- parent = JCA
+- required_libraries = MC Support JCAAsmPrinter JCAInfo
+- add_to_library_groups = JCA
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/TargetInfo/CMakeLists.txt llvm-3.7.0.src-orig/lib/Target/JCA/TargetInfo/CMakeLists.txt
+*** llvm-3.7.0.src/lib/Target/JCA/TargetInfo/CMakeLists.txt	2015-11-12 18:26:31.486413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/TargetInfo/CMakeLists.txt	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,4 ****
+- add_llvm_library(LLVMJCAInfo
+- 	JCATargetInfo.cpp
+- )
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/TargetInfo/JCATargetInfo.cpp llvm-3.7.0.src-orig/lib/Target/JCA/TargetInfo/JCATargetInfo.cpp
+*** llvm-3.7.0.src/lib/Target/JCA/TargetInfo/JCATargetInfo.cpp	2015-11-12 17:46:56.146413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/TargetInfo/JCATargetInfo.cpp	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,20 ****
+- //===-- JCATargetInfo.cpp - JCA Target Implementation -----------------===//
+- //
+- //                     The LLVM Compiler Infrastructure
+- //
+- // This file is distributed under the University of Illinois Open Source
+- // License. See LICENSE.TXT for details.
+- //
+- //===----------------------------------------------------------------------===//
+- 
+- #include "JCA.h"
+- #include "llvm/IR/Module.h"
+- #include "llvm/Support/TargetRegistry.h"
+- using namespace llvm;
+- 
+- Target llvm::TheJCATarget;
+- 
+- extern "C" void LLVMInitializeJCATargetInfo() {
+-   RegisterTarget<Triple::jca, /*HasJIT=*/false> X(TheJCATarget, "jca",
+-                                                    "JCA");
+- }
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/JCA/TargetInfo/LLVMBuild.txt llvm-3.7.0.src-orig/lib/Target/JCA/TargetInfo/LLVMBuild.txt
+*** llvm-3.7.0.src/lib/Target/JCA/TargetInfo/LLVMBuild.txt	2015-11-12 18:27:07.726413860 +0000
+--- llvm-3.7.0.src-orig/lib/Target/JCA/TargetInfo/LLVMBuild.txt	1970-01-01 01:00:00.000000000 +0100
+***************
+*** 1,7 ****
+- [component_0]
+- type = Library
+- name = JCAInfo
+- parent = JCA
+- required_libraries = Support
+- add_to_library_groups = JCA
+- 
+--- 0 ----
+diff -crBN llvm-3.7.0.src/lib/Target/LLVMBuild.txt llvm-3.7.0.src-orig/lib/Target/LLVMBuild.txt
+*** llvm-3.7.0.src/lib/Target/LLVMBuild.txt	2015-11-11 14:22:38.206107000 +0000
+--- llvm-3.7.0.src-orig/lib/Target/LLVMBuild.txt	2015-06-30 00:51:55.000000000 +0100
+***************
+*** 34,40 ****
+   WebAssembly
+   X86
+   XCore
+-  JCA
+  
+  ; This is a special group whose required libraries are extended (by llvm-build)
+  ; with the best execution engine (the native JIT, if available, or the
+--- 34,39 ----
+Binary files llvm-3.7.0.src/utils/llvm-build/llvmbuild/componentinfo.pyc and llvm-3.7.0.src-orig/utils/llvm-build/llvmbuild/componentinfo.pyc differ
+Binary files llvm-3.7.0.src/utils/llvm-build/llvmbuild/configutil.pyc and llvm-3.7.0.src-orig/utils/llvm-build/llvmbuild/configutil.pyc differ
+Binary files llvm-3.7.0.src/utils/llvm-build/llvmbuild/__init__.pyc and llvm-3.7.0.src-orig/utils/llvm-build/llvmbuild/__init__.pyc differ
+Binary files llvm-3.7.0.src/utils/llvm-build/llvmbuild/main.pyc and llvm-3.7.0.src-orig/utils/llvm-build/llvmbuild/main.pyc differ
+Binary files llvm-3.7.0.src/utils/llvm-build/llvmbuild/util.pyc and llvm-3.7.0.src-orig/utils/llvm-build/llvmbuild/util.pyc differ
