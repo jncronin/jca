@@ -138,57 +138,132 @@ namespace jcasm
             foreach (Statement s in ((StatementList)p.output).list)
                 ExpandComplex(s, pass1);
 
-            // next, add offset information to statements and extract label offsets
-            cur_section = sections[".text"];
-            Dictionary<string, LabelOffset> label_offsets = new Dictionary<string, LabelOffset>();
-            los = label_offsets;
-            foreach(Statement s in pass1)
+            Dictionary<string, LabelOffset> label_offsets;
+
+            bool changes = false;
+            do
             {
-                if (s == null)
-                    continue;
-                if(s is SectionHeader)
+                // Reset all section offsets to 0
+                foreach (var s in sections.Values)
                 {
-                    var sh = s as SectionHeader;
-                    cur_section = sections[sh.name];
+                    s.cur_offset = 0;
+                    s.cur_label = "";
                 }
 
-                s.offset = cur_section.cur_offset;
-                cur_section.cur_offset = s.OffsetAfter(cur_section.cur_offset);
-
-                if(s is LineLabel)
+                changes = false;
+                // next, add offset information to statements and extract label offsets
+                cur_section = sections[".text"];
+                label_offsets = new Dictionary<string, LabelOffset>();
+                los = label_offsets;
+                foreach (Statement s in pass1)
                 {
-                    LineLabel ll = s as LineLabel;
-                    ll.abs_name = ll.name;
-                    label_offsets[ll.abs_name] = new LabelOffset { Section = cur_section, Offset = ll.offset };
+                    if (s == null)
+                        continue;
+                    if (s is SectionHeader)
+                    {
+                        var sh = s as SectionHeader;
+                        cur_section = sections[sh.name];
+                    }
 
-                    if (global_objs.ContainsKey(ll.name))
-                        global_objs[ll.name] = cur_section;
+                    s.offset = cur_section.cur_offset;
+                    s.section = cur_section;
+                    cur_section.cur_offset = s.OffsetAfter(cur_section.cur_offset);
+
+                    if (s is LineLabel)
+                    {
+                        LineLabel ll = s as LineLabel;
+                        ll.abs_name = ll.name;
+                        label_offsets[ll.abs_name] = new LabelOffset { Section = cur_section, Offset = ll.offset };
+
+                        if (global_objs.ContainsKey(ll.name))
+                            global_objs[ll.name] = cur_section;
+                    }
+
+
                 }
 
-
-            }
-
-            // do a pass to evaluate all expressions
-            cur_section = sections[".text"];
-            foreach (Statement s in pass1)
-            {
-                if (s == null)
-                    continue;
-
-                if (s is SectionHeader)
+                // do a pass to evaluate all expressions
+                cur_section = sections[".text"];
+                foreach (Statement s in pass1)
                 {
-                    var sh = s as SectionHeader;
-                    cur_section = sections[sh.name];
+                    if (s == null)
+                        continue;
+
+                    if (s is SectionHeader)
+                    {
+                        var sh = s as SectionHeader;
+                        cur_section = sections[sh.name];
+                    }
+
+                    if (s is Instruction)
+                    {
+                        Instruction i = s as Instruction;
+                        i.srca = EvaluateOperand(i.srca, label_offsets, cur_section);
+                        i.srcb = EvaluateOperand(i.srcb, label_offsets, cur_section);
+                        i.dest = EvaluateOperand(i.dest, label_offsets, cur_section);
+                    }
                 }
 
-                if (s is Instruction)
+                /* Identify those instructions of the form jrel(cc) where we can see
+                    for definite that the relocation won't fit */
+                List<Statement> pass2 = new List<Statement>();
+                foreach (Statement s in pass1)
                 {
                     Instruction i = s as Instruction;
-                    i.srca = EvaluateOperand(i.srca, label_offsets, cur_section);
-                    i.srcb = EvaluateOperand(i.srcb, label_offsets, cur_section);
-                    i.dest = EvaluateOperand(i.dest, label_offsets, cur_section);
+                    if (i != null)
+                    {
+                        if (i.op == "mov" && (i.dest is RegisterOperand) &&
+                            (((RegisterOperand)i.dest).val.ToLower() == "pc" ||
+                            ((RegisterOperand)i.dest).val.ToLower() == "r0") &&
+                            i.cond != null &&
+                            i.cond.ctype != Condition.CType.Always)
+                        {
+                            Relocation r = i.srca as Relocation;
+                            if (r != null)
+                            {
+                                // Do we target a label in this section ?
+                                if (r.TargetSection != null && r.TargetSection == i.section)
+                                {
+                                    // Relocation type will eventually be SRCABREL: S + A - P
+                                    // Calculate its value
+                                    long r_val = los[r.TargetName].Offset + r.Addend -
+                                        i.offset;
+
+                                    // SRCABREL can fit values from -1024 to + 1023
+                                    if (r_val < -1024 || r_val > 1023)
+                                    {
+                                        // Replace with LIT val -> R1; mov(cc) R1 -> PC;
+
+                                        Instruction lit = new Instruction();
+                                        lit.op = "lit";
+                                        lit.cond = new Condition { ctype = Condition.CType.Always };
+                                        lit.dest = new RegisterOperand { val = "R1" };
+                                        lit.srca = r;
+                                        pass2.Add(lit);
+
+                                        Instruction mov = new Instruction();
+                                        mov.op = "mov";
+                                        mov.cond = i.cond;
+                                        mov.srca = new RegisterOperand { val = "R1" };
+                                        mov.dest = new RegisterOperand { val = "PC" };
+                                        pass2.Add(mov);
+
+                                        changes = true;
+
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (s != null)
+                        pass2.Add(s);
                 }
-            }
+
+                pass1 = pass2;
+            } while (changes == true);
+
 
             // now do the actual encoding
             List<byte> oput;
@@ -826,6 +901,7 @@ namespace jcasm
     class Statement
     {
         public int offset;
+        public Section section;
         public virtual int OffsetAfter(int offset_before) { return offset_before + 4; }
     }
 
@@ -880,11 +956,56 @@ namespace jcasm
 
         public override string ToString()
         {
+            if (cond != null && cond.ctype == Condition.CType.Never)
+                return "nop";
+
             StringBuilder sb = new StringBuilder();
             if (op == null)
                 sb.Append("{unknown}");
             else
                 sb.Append(op);
+
+            if(cond != null && cond.ctype != Condition.CType.Always)
+            {
+                sb.Append("(");
+                switch(cond.ctype)
+                {
+                    case Condition.CType.Equals:
+                        sb.Append("z");
+                        break;
+                    case Condition.CType.Negative:
+                        sb.Append("neg");
+                        break;
+                    case Condition.CType.NegEqual:
+                        sb.Append("negeq");
+                        break;
+                    case Condition.CType.NotEquals:
+                        sb.Append("nz");
+                        break;
+                    case Condition.CType.NSOverflow:
+                        sb.Append("nso");
+                        break;
+                    case Condition.CType.NUSOverflow:
+                        sb.Append("nuo");
+                        break;
+                    case Condition.CType.PosEqual:
+                        sb.Append("poseq");
+                        break;
+                    case Condition.CType.Positive:
+                        sb.Append("p");
+                        break;
+                    case Condition.CType.SOverflow:
+                        sb.Append("so");
+                        break;
+                    case Condition.CType.USOverflow:
+                        sb.Append("uo");
+                        break;
+                }
+                sb.Append(" R");
+                sb.Append(cond.reg_no.ToString());
+                sb.Append(")");
+            }
+
             sb.Append(" ");
             sb.Append(srca.ToString());
             if(srcb != null)
