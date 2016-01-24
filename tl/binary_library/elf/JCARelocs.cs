@@ -345,7 +345,7 @@ namespace binary_library.elf
             }
 
             public int BitLength
-            { get { return 10; } }
+            { get { return 11; } }
             public bool IsSigned
             { get { return true; } }
             public int BitOffset
@@ -469,7 +469,7 @@ namespace binary_library.elf
             }
 
             public int BitLength
-            { get { return 15; } }
+            { get { return 16; } }
             public bool IsSigned
             { get { return true; } }
             public int BitOffset
